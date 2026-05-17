@@ -7,9 +7,80 @@ import {
   text,
   primaryKey,
   integer,
+  pgEnum,
 } from "drizzle-orm/pg-core"
 import type { AdapterAccountType } from "next-auth/adapters"
- 
+
+// ============================================
+// ENUMS — Tipos pré-definidos (níveis de usuário)
+// ============================================
+export const userRoleEnum = pgEnum("user_role", [
+  "super_admin",      // Você, dono do Artbase
+  "brand_admin",      // Admin da marca (ex: GWM)
+  "dealership_admin", // Admin da unidade (concessionária)
+  "user",             // Usuário final (vendedor)
+]);
+
+// ============================================
+// NOVA TABELA: BRANDS (Marcas / Clientes)
+// ============================================
+export const brands = pgTable("brand", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  logoUrl: text("logoUrl"),
+  primaryColor: text("primaryColor"),
+  secondaryColor: text("secondaryColor"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+// ============================================
+// NOVA TABELA: DEALERSHIPS (Unidades / Concessionárias)
+// ============================================
+export const dealerships = pgTable("dealership", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  brandId: text("brandId")
+    .notNull()
+    .references(() => brands.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  cnpj: text("cnpj"),
+  city: text("city"),
+  state: text("state"),
+  phone: text("phone"),
+  address: text("address"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+// ============================================
+// NOVA TABELA: INVITES (Convites por email)
+// ============================================
+export const invites = pgTable("invite", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  email: text("email").notNull(),
+  role: userRoleEnum("role").notNull(),
+  brandId: text("brandId")
+    .references(() => brands.id, { onDelete: "cascade" }),
+  dealershipId: text("dealershipId")
+    .references(() => dealerships.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  accepted: boolean("accepted").notNull().default(false),
+  expiresAt: timestamp("expiresAt", { mode: "date" }).notNull(),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+// ============================================
+// TABELA ATUALIZADA: USERS (com role + brand + dealership)
+// ============================================
 export const users = pgTable("user", {
   id: text("id")
     .primaryKey()
@@ -18,13 +89,47 @@ export const users = pgTable("user", {
   email: text("email").notNull(),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
-  password: text("password"), 
+  password: text("password"),
+  // ⬇️ Novos campos pro multi-tenant
+  role: userRoleEnum("role").notNull().default("user"),
+  brandId: text("brandId")
+    .references(() => brands.id, { onDelete: "set null" }),
+  dealershipId: text("dealershipId")
+    .references(() => dealerships.id, { onDelete: "set null" }),
 });
 
-export const usersRelations = relations(users, ({ many }) => ({
+// ============================================
+// RELACIONAMENTOS
+// ============================================
+export const usersRelations = relations(users, ({ many, one }) => ({
+  projects: many(projects),
+  brand: one(brands, {
+    fields: [users.brandId],
+    references: [brands.id],
+  }),
+  dealership: one(dealerships, {
+    fields: [users.dealershipId],
+    references: [dealerships.id],
+  }),
+}));
+
+export const brandsRelations = relations(brands, ({ many }) => ({
+  dealerships: many(dealerships),
+  users: many(users),
   projects: many(projects),
 }));
 
+export const dealershipsRelations = relations(dealerships, ({ one, many }) => ({
+  brand: one(brands, {
+    fields: [dealerships.brandId],
+    references: [brands.id],
+  }),
+  users: many(users),
+}));
+
+// ============================================
+// TABELAS DO NEXTAUTH (não mexer)
+// ============================================
 export const accounts = pgTable(
   "account",
   {
@@ -48,7 +153,7 @@ export const accounts = pgTable(
     }),
   })
 )
- 
+
 export const sessions = pgTable("session", {
   sessionToken: text("sessionToken").primaryKey(),
   userId: text("userId")
@@ -56,7 +161,7 @@ export const sessions = pgTable("session", {
     .references(() => users.id, { onDelete: "cascade" }),
   expires: timestamp("expires", { mode: "date" }).notNull(),
 })
- 
+
 export const verificationTokens = pgTable(
   "verificationToken",
   {
@@ -70,7 +175,7 @@ export const verificationTokens = pgTable(
     }),
   })
 )
- 
+
 export const authenticators = pgTable(
   "authenticator",
   {
@@ -92,6 +197,9 @@ export const authenticators = pgTable(
   })
 )
 
+// ============================================
+// TABELA ATUALIZADA: PROJECTS (com brandId)
+// ============================================
 export const projects = pgTable("project", {
   id: text("id")
     .primaryKey()
@@ -102,6 +210,9 @@ export const projects = pgTable("project", {
     .references(() => users.id, {
       onDelete: "cascade",
     }),
+  // ⬇️ Novo campo: saber a qual marca o projeto pertence
+  brandId: text("brandId")
+    .references(() => brands.id, { onDelete: "cascade" }),
   json: text("json").notNull(),
   height: integer("height").notNull(),
   width: integer("width").notNull(),
@@ -117,10 +228,17 @@ export const projectsRelations = relations(projects, ({ one }) => ({
     fields: [projects.userId],
     references: [users.id],
   }),
+  brand: one(brands, {
+    fields: [projects.brandId],
+    references: [brands.id],
+  }),
 }));
 
 export const projectsInsertSchema = createInsertSchema(projects);
 
+// ============================================
+// TABELA DE ASSINATURAS (não mexer)
+// ============================================
 export const subscriptions = pgTable("subscription", {
   id: text("id")
     .primaryKey()

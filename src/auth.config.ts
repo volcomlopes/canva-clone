@@ -16,15 +16,44 @@ const CredentialsSchema = z.object({
   password: z.string(),
 });
 
+// ============================================
+// TIPOS PERSONALIZADOS — Artbase Multi-tenant
+// ============================================
+
+// Tipo do role do usuário (igual ao enum do schema)
+type UserRole = "super_admin" | "brand_admin" | "dealership_admin" | "user";
+
+// Estende o tipo JWT para incluir os campos do Artbase
 declare module "next-auth/jwt" {
   interface JWT {
     id: string | undefined;
+    role: UserRole | undefined;
+    brandId: string | null | undefined;
+    dealershipId: string | null | undefined;
   }
 }
 
 declare module "@auth/core/jwt" {
   interface JWT {
     id: string | undefined;
+    role: UserRole | undefined;
+    brandId: string | null | undefined;
+    dealershipId: string | null | undefined;
+  }
+}
+
+// Estende o tipo Session para incluir os campos do Artbase
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      role: UserRole;
+      brandId: string | null;
+      dealershipId: string | null;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+    };
   }
 }
 
@@ -67,8 +96,8 @@ export default {
 
         return user;
       },
-    }), 
-    GitHub, 
+    }),
+    GitHub,
     Google
   ],
   pages: {
@@ -79,16 +108,58 @@ export default {
     strategy: "jwt",
   },
   callbacks: {
+    // ============================================
+    // SESSION CALLBACK — Adiciona dados do Artbase à sessão
+    // ============================================
     session({ session, token }) {
       if (token.id) {
         session.user.id = token.id;
       }
 
+      // Adiciona os dados do multi-tenant na sessão
+      if (token.role) {
+        session.user.role = token.role;
+      }
+
+      if (token.brandId !== undefined) {
+        session.user.brandId = token.brandId ?? null;
+      }
+
+      if (token.dealershipId !== undefined) {
+        session.user.dealershipId = token.dealershipId ?? null;
+      }
+
       return session;
     },
-    jwt({ token, user }) {
+
+    // ============================================
+    // JWT CALLBACK — Busca dados do banco e adiciona ao token
+    // ============================================
+    async jwt({ token, user }) {
+      // Primeira vez fazendo login: pega dados do user
       if (user) {
-        token.id = user.id;  
+        token.id = user.id;
+      }
+
+      // Em TODA requisição: busca dados atualizados no banco
+      // (importante para refletir mudanças de role em tempo real)
+      if (token.id) {
+        const dbUser = await db
+          .select({
+            id: users.id,
+            role: users.role,
+            brandId: users.brandId,
+            dealershipId: users.dealershipId,
+          })
+          .from(users)
+          .where(eq(users.id, token.id))
+          .limit(1);
+
+        if (dbUser[0]) {
+          token.role = dbUser[0].role as UserRole;
+          token.brandId = dbUser[0].brandId;
+          token.dealershipId = dbUser[0].dealershipId;
+        }
       }
 
       return token;
