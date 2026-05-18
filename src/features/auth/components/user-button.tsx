@@ -1,7 +1,8 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { CreditCard, Crown, Loader, LogOut } from "lucide-react";
+import Link from "next/link";
+import { CreditCard, Crown, Loader, LogOut, ShieldCheck } from "lucide-react";
 
 import { 
   Avatar, 
@@ -42,6 +43,7 @@ export const UserButton = () => {
 
   const name = session.data?.user?.name!;
   const imageUrl = session.data?.user?.image;
+  const isSuperAdmin = session.data?.user?.role === "super_admin";
 
   return (
     <DropdownMenu modal={false}>
@@ -53,7 +55,7 @@ export const UserButton = () => {
             </div>
           </div>
         )}
-        <Avatar className="size-10 hover:opcaity-75 transition">
+        <Avatar className="size-10 hover:opacity-75 transition">
           <AvatarImage alt={name} src={imageUrl || ""} />
           <AvatarFallback className="bg-blue-500 font-medium text-white flex items-center justify-center">
             {(name || "U").charAt(0).toUpperCase()}
@@ -61,6 +63,19 @@ export const UserButton = () => {
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
+        {/* Botão Admin - só aparece para super_admin */}
+        {isSuperAdmin && (
+          <>
+            <DropdownMenuItem asChild className="h-10">
+              <Link href="/admin">
+                <ShieldCheck className="size-4 mr-2 text-blue-600" />
+                <span className="font-medium">Admin Panel</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+
         <DropdownMenuItem
           disabled={mutation.isPending}
           onClick={onClick}
