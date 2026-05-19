@@ -17,6 +17,7 @@ import { brands, dealerships, users } from "@/db/schema";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { BrandStatusButton } from "../../../_components/brand-status-button";
 
 interface BrandDetailsPageProps {
   params: {
@@ -24,7 +25,6 @@ interface BrandDetailsPageProps {
   };
 }
 
-// Helper: formata role em português
 const formatRole = (role: string): string => {
   const map: Record<string, string> = {
     super_admin: "Super Admin",
@@ -35,7 +35,6 @@ const formatRole = (role: string): string => {
   return map[role] || role;
 };
 
-// Helper: cor do badge baseado no role
 const getRoleVariant = (role: string): "default" | "secondary" | "outline" => {
   if (role === "super_admin") return "default";
   if (role === "brand_admin") return "secondary";
@@ -43,7 +42,6 @@ const getRoleVariant = (role: string): "default" | "secondary" | "outline" => {
 };
 
 export default async function BrandDetailsPage({ params }: BrandDetailsPageProps) {
-  // 🔍 Busca a marca
   const [brand] = await db
     .select()
     .from(brands)
@@ -54,13 +52,11 @@ export default async function BrandDetailsPage({ params }: BrandDetailsPageProps
     notFound();
   }
 
-  // 🏢 Busca unidades dessa marca
   const brandDealerships = await db
     .select()
     .from(dealerships)
     .where(eq(dealerships.brandId, brand.id));
 
-  // 👥 Busca usuários dessa marca
   const brandUsers = await db
     .select()
     .from(users)
@@ -68,7 +64,6 @@ export default async function BrandDetailsPage({ params }: BrandDetailsPageProps
 
   return (
     <div className="py-6 max-w-7xl mx-auto w-full">
-      {/* Voltar */}
       <Link
         href="/admin/brands"
         className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 mb-4 transition-colors"
@@ -77,10 +72,8 @@ export default async function BrandDetailsPage({ params }: BrandDetailsPageProps
         Voltar para marcas
       </Link>
 
-      {/* Header da Marca */}
       <div className="flex items-start justify-between mb-8 pb-6 border-b border-slate-200">
         <div className="flex items-center gap-4">
-          {/* Logo */}
           <div
             className="size-16 rounded-xl flex items-center justify-center text-white font-bold text-2xl shadow-sm"
             style={{ backgroundColor: brand.primaryColor || "#3B82F6" }}
@@ -88,7 +81,6 @@ export default async function BrandDetailsPage({ params }: BrandDetailsPageProps
             {brand.name.charAt(0)}
           </div>
 
-          {/* Info */}
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-2xl font-bold text-slate-900">
@@ -107,20 +99,20 @@ export default async function BrandDetailsPage({ params }: BrandDetailsPageProps
           </div>
         </div>
 
-        {/* Ações */}
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>
             <Link href={`/admin/brands/${brand.id}/edit`}>
               ✏️ Editar
             </Link>
           </Button>
-          <Button variant="outline" size="sm" disabled>
-            {brand.active ? "🔒 Desativar" : "✅ Ativar"}
-          </Button>
+          <BrandStatusButton
+            brandId={brand.id}
+            brandName={brand.name}
+            isActive={brand.active}
+          />
         </div>
       </div>
 
-      {/* Estatísticas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-white border border-slate-200 rounded-lg p-5">
           <div className="flex items-center gap-3">
@@ -165,7 +157,6 @@ export default async function BrandDetailsPage({ params }: BrandDetailsPageProps
         </div>
       </div>
 
-      {/* Cores da Marca */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-slate-900 mb-3">
           🎨 Cores da Marca
@@ -194,7 +185,6 @@ export default async function BrandDetailsPage({ params }: BrandDetailsPageProps
         </div>
       </div>
 
-      {/* Unidades */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
           <StoreIcon className="size-5" />
@@ -235,7 +225,6 @@ export default async function BrandDetailsPage({ params }: BrandDetailsPageProps
         )}
       </div>
 
-      {/* Usuários */}
       <div>
         <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
           <UsersIcon className="size-5" />
