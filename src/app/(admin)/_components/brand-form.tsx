@@ -9,6 +9,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { createBrand } from "../_actions/create-brand";
+import { updateBrand } from "../_actions/update-brand";
+
+// Tipo do brand pra edição
+interface BrandData {
+  id: string;
+  name: string;
+  slug: string;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+}
+
+interface BrandFormProps {
+  brand?: BrandData; // se passar, é modo edição
+}
 
 // Helper: gera slug a partir do nome
 const generateSlug = (text: string): string => {
@@ -21,18 +35,21 @@ const generateSlug = (text: string): string => {
     .replace(/\s+/g, "-");
 };
 
-export const BrandForm = () => {
+export const BrandForm = ({ brand }: BrandFormProps) => {
   const router = useRouter();
+  const isEditMode = !!brand;
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [slugManual, setSlugManual] = useState(false);
-  const [primaryColor, setPrimaryColor] = useState("#3B82F6");
-  const [secondaryColor, setSecondaryColor] = useState("#1E293B");
+  // Inicializa com dados do brand (se editando) ou vazio (se criando)
+  const [name, setName] = useState(brand?.name || "");
+  const [slug, setSlug] = useState(brand?.slug || "");
+  const [slugManual, setSlugManual] = useState(isEditMode); // se edição, não regenera
+  const [primaryColor, setPrimaryColor] = useState(brand?.primaryColor || "#3B82F6");
+  const [secondaryColor, setSecondaryColor] = useState(brand?.secondaryColor || "#1E293B");
 
-  // Atualiza slug automaticamente quando muda o nome
+  // Atualiza slug automaticamente quando muda o nome (só em modo criar)
   const handleNameChange = (value: string) => {
     setName(value);
     if (!slugManual) {
@@ -45,12 +62,26 @@ export const BrandForm = () => {
     setError(null);
     setIsLoading(true);
 
-    const result = await createBrand({
-      name,
-      slug,
-      primaryColor,
-      secondaryColor,
-    });
+    let result;
+
+    if (isEditMode && brand) {
+      // 🔄 Modo edição
+      result = await updateBrand({
+        id: brand.id,
+        name,
+        slug,
+        primaryColor,
+        secondaryColor,
+      });
+    } else {
+      // ➕ Modo criação
+      result = await createBrand({
+        name,
+        slug,
+        primaryColor,
+        secondaryColor,
+      });
+    }
 
     if (result.error) {
       setError(result.error);
@@ -58,8 +89,12 @@ export const BrandForm = () => {
       return;
     }
 
-    // ✅ Sucesso! Redireciona para a lista de marcas
-    router.push("/admin/brands");
+    // ✅ Sucesso!
+    if (isEditMode && brand) {
+      router.push(`/admin/brands/${brand.id}`);
+    } else {
+      router.push("/admin/brands");
+    }
     router.refresh();
   };
 
@@ -111,7 +146,7 @@ export const BrandForm = () => {
         <Label htmlFor="slug">
           Slug *
           <span className="text-xs text-slate-500 font-normal ml-2">
-            (usado em URLs, gerado automaticamente)
+            (usado em URLs)
           </span>
         </Label>
         <Input
@@ -177,7 +212,13 @@ export const BrandForm = () => {
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/admin/brands")}
+          onClick={() => {
+            if (isEditMode && brand) {
+              router.push(`/admin/brands/${brand.id}`);
+            } else {
+              router.push("/admin/brands");
+            }
+          }}
           disabled={isLoading}
         >
           Cancelar
@@ -189,7 +230,7 @@ export const BrandForm = () => {
               Salvando...
             </>
           ) : (
-            "Criar Marca"
+            isEditMode ? "Salvar alterações" : "Criar Marca"
           )}
         </Button>
       </div>

@@ -109,8 +109,10 @@ export default async function BrandDetailsPage({ params }: BrandDetailsPageProps
 
         {/* Ações */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled>
-            ✏️ Editar
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/admin/brands/${brand.id}/edit`}>
+              ✏️ Editar
+            </Link>
           </Button>
           <Button variant="outline" size="sm" disabled>
             {brand.active ? "🔒 Desativar" : "✅ Ativar"}
