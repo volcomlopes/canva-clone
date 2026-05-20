@@ -1,21 +1,21 @@
-import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import {
-  PlusIcon,
   UsersIcon,
   MailIcon,
   StoreIcon,
   ShieldIcon,
+  ClockIcon,
 } from "lucide-react";
 
 import { auth } from "@/auth";
 import { db } from "@/db/drizzle";
-import { users, dealerships } from "@/db/schema";
+import { users, dealerships, invites } from "@/db/schema";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-// Helper: formata role em português
+import { InviteUserModal } from "@/app/(brand)/_components/invite-user-modal";
+import { PendingInvites } from "@/app/(brand)/_components/pending-invites";
+
 const formatRole = (role: string): string => {
   const map: Record<string, string> = {
     super_admin: "Super Admin",
@@ -26,7 +26,6 @@ const formatRole = (role: string): string => {
   return map[role] || role;
 };
 
-// Helper: cor do badge baseado no role
 const getRoleVariant = (role: string): "default" | "secondary" | "outline" => {
   if (role === "super_admin") return "default";
   if (role === "brand_admin") return "default";
@@ -34,7 +33,6 @@ const getRoleVariant = (role: string): "default" | "secondary" | "outline" => {
   return "outline";
 };
 
-// Helper: ícone do role
 const getRoleIcon = (role: string) => {
   if (role === "brand_admin") return ShieldIcon;
   if (role === "dealership_admin") return StoreIcon;
@@ -45,24 +43,30 @@ export default async function BrandUsersPage() {
   const session = await auth();
   const brandId = session?.user?.brandId;
 
-  // 🔍 Busca usuários DA MARCA do user logado (multi-tenant!)
   const brandUsers = await db
     .select()
     .from(users)
     .where(eq(users.brandId, brandId!));
 
-  // 🏢 Busca todas as unidades da marca (pra mostrar o nome da unidade do user)
   const brandDealerships = await db
     .select()
     .from(dealerships)
     .where(eq(dealerships.brandId, brandId!));
 
-  // Cria um mapa "id da unidade → nome"
+  const pendingInvites = await db
+    .select()
+    .from(invites)
+    .where(
+      and(
+        eq(invites.brandId, brandId!),
+        eq(invites.accepted, false)
+      )
+    );
+
   const dealershipMap = new Map(
     brandDealerships.map((d) => [d.id, d.name])
   );
 
-  // Agrupa contadores por role
   const counts = {
     total: brandUsers.length,
     brandAdmins: brandUsers.filter((u) => u.role === "brand_admin").length,
@@ -72,7 +76,6 @@ export default async function BrandUsersPage() {
 
   return (
     <div className="py-6 max-w-7xl mx-auto w-full">
-      {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 mb-1">
@@ -83,13 +86,11 @@ export default async function BrandUsersPage() {
           </p>
         </div>
 
-        <Button disabled title="Em breve">
-          <PlusIcon className="size-4 mr-2" />
-          Convidar Usuário
-        </Button>
+        <InviteUserModal
+          dealerships={brandDealerships.map((d) => ({ id: d.id, name: d.name }))}
+        />
       </div>
 
-      {/* Cards de stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <p className="text-xs text-slate-500 mb-1">Total</p>
@@ -109,23 +110,43 @@ export default async function BrandUsersPage() {
         </div>
       </div>
 
-      {/* Lista de Usuários */}
+      {pendingInvites.length > 0 && (
+        <PendingInvites
+          invites={pendingInvites.map((i) => ({
+            id: i.id,
+            email: i.email,
+            role: i.role,
+            dealershipName: i.dealershipId ? dealershipMap.get(i.dealershipId) || null : null,
+            token: i.token,
+            createdAt: i.createdAt,
+            expiresAt: i.expiresAt,
+          }))}
+        />
+      )}
+
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+          <UsersIcon className="size-4" />
+          Usuários Ativos ({brandUsers.length})
+        </h3>
+      </div>
+
       {brandUsers.length === 0 ? (
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-12 text-center">
           <UsersIcon className="size-12 mx-auto text-slate-400 mb-4" />
           <h3 className="font-semibold text-slate-900 mb-2">
-            Nenhum usuário cadastrado
+            Nenhum usuário ativo
           </h3>
           <p className="text-sm text-slate-500">
-            Comece convidando os primeiros usuários da sua marca.
+            Use o botão Convidar Usuário pra adicionar pessoas.
           </p>
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-200">
           {brandUsers.map((user) => {
             const RoleIcon = getRoleIcon(user.role);
-            const dealershipName = user.dealershipId 
-              ? dealershipMap.get(user.dealershipId) 
+            const dealershipName = user.dealershipId
+              ? dealershipMap.get(user.dealershipId)
               : null;
 
             return (
@@ -133,7 +154,6 @@ export default async function BrandUsersPage() {
                 key={user.id}
                 className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
               >
-                {/* Esquerda: Avatar + Info */}
                 <div className="flex items-center gap-3">
                   <div className="size-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
                     {(user.name || "U").charAt(0).toUpperCase()}
@@ -155,7 +175,6 @@ export default async function BrandUsersPage() {
                   </div>
                 </div>
 
-                {/* Direita: Role Badge */}
                 <div className="flex items-center gap-3">
                   <Badge variant={getRoleVariant(user.role)} className="gap-1">
                     <RoleIcon className="size-3" />
@@ -167,13 +186,6 @@ export default async function BrandUsersPage() {
           })}
         </div>
       )}
-
-      {/* Info bottom */}
-      <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-slate-600">
-          💡 <strong>Em breve:</strong> sistema de convite por email, gerenciamento de permissões, e ações em lote.
-        </p>
-      </div>
     </div>
   );
 }
