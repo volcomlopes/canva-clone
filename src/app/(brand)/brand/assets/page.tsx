@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import {
   ImageIcon,
   UploadIcon,
@@ -9,43 +9,59 @@ import { auth } from "@/auth";
 import { db } from "@/db/drizzle";
 import { brandAssets } from "@/db/schema";
 
-import { Button } from "@/components/ui/button";
+import { AssetsUploader } from "@/app/(brand)/_components/assets-uploader";
+import { AssetCard } from "@/app/(brand)/_components/asset-card";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  produtos: "Produtos / Servicos",
+  logos: "Logos",
+  backgrounds: "Backgrounds",
+  icones: "Icones",
+  banners: "Banners promocionais",
+};
+
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return "0 MB";
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  return `${(mb / 1024).toFixed(2)} GB`;
+};
 
 export default async function BrandAssetsPage() {
   const session = await auth();
   const brandId = session?.user?.brandId;
 
-  // Busca assets da marca
   const assets = await db
     .select()
     .from(brandAssets)
-    .where(eq(brandAssets.brandId, brandId!));
+    .where(eq(brandAssets.brandId, brandId!))
+    .orderBy(desc(brandAssets.createdAt));
 
-  // Conta assets por categoria
   const categoryCount = new Map<string, number>();
+  let totalBytes = 0;
+
   assets.forEach((asset) => {
-    const cat = asset.category || "Sem categoria";
+    const cat = asset.category || "sem-categoria";
     categoryCount.set(cat, (categoryCount.get(cat) || 0) + 1);
+    if (asset.fileSize) {
+      totalBytes += Number(asset.fileSize) || 0;
+    }
   });
 
   return (
     <div className="py-6 max-w-7xl mx-auto w-full">
-      {/* Cabecalho */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">
-            Biblioteca de Assets
-          </h2>
-          <p className="text-slate-500 text-sm">
-            Fotos oficiais da marca disponiveis para todos os vendedores.
-          </p>
-        </div>
-
-        <Button disabled title="Em breve">
-          <UploadIcon className="size-4 mr-2" />
-          Upload de Fotos
-        </Button>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-slate-900 mb-1">
+          Biblioteca de Assets
+        </h2>
+        <p className="text-slate-500 text-sm">
+          Fotos oficiais da marca disponiveis para todos os vendedores.
+        </p>
       </div>
+
+      {/* Dropzone fixo no topo */}
+      <AssetsUploader />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -84,7 +100,7 @@ export default async function BrandAssetsPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-slate-900">
-                0 MB
+                {formatBytes(totalBytes)}
               </p>
               <p className="text-sm text-slate-500">Armazenamento</p>
             </div>
@@ -102,62 +118,45 @@ export default async function BrandAssetsPage() {
             Sua biblioteca esta vazia
           </h3>
           <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
-            Faca upload das fotos oficiais da marca (modelos, logos, backgrounds) para que seus vendedores possam usar nos materiais.
+            Use o dropzone acima para subir as primeiras fotos. Escolha a categoria antes de arrastar os arquivos.
           </p>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto mb-6 text-left">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto text-left">
             <p className="text-sm font-medium text-slate-900 mb-2">
               Sugestoes do que subir:
             </p>
             <ul className="text-sm text-slate-600 space-y-1 ml-4 list-disc">
-              <li>Fotos dos modelos (Haval H6, Ora 3, etc.)</li>
+              <li>Fotos dos produtos / modelos</li>
               <li>Logos da marca em diferentes cores</li>
               <li>Backgrounds e texturas oficiais</li>
-              <li>Imagens de campanha</li>
+              <li>Banners de campanha</li>
             </ul>
           </div>
-
-          <Button disabled title="Em breve">
-            <UploadIcon className="size-4 mr-2" />
-            Fazer Upload (em breve)
-          </Button>
         </div>
       ) : (
         <div>
-          {/* Categorias */}
           {Array.from(categoryCount.entries()).map(([category, count]) => (
             <div key={category} className="mb-8">
               <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
                 <FolderIcon className="size-4" />
-                {category} ({count})
+                {CATEGORY_LABELS[category] || category} ({count})
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                 {assets
-                  .filter((a) => (a.category || "Sem categoria") === category)
+                  .filter((a) => (a.category || "sem-categoria") === category)
                   .map((asset) => (
-                    <div
+                    <AssetCard
                       key={asset.id}
-                      className="aspect-square bg-slate-100 rounded-lg overflow-hidden border border-slate-200 hover:shadow-md transition-shadow"
-                    >
-                      <img
-                        src={asset.url}
-                        alt={asset.fileName || ""}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                      id={asset.id}
+                      url={asset.url}
+                      fileName={asset.fileName}
+                    />
                   ))}
               </div>
             </div>
           ))}
         </div>
       )}
-
-      {/* Info bottom */}
-      <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-slate-600">
-          💡 <strong>Proximo passo:</strong> sistema de upload em massa (ate 20 fotos por vez), organizacao por categorias, e integracao com a aba Imagens do editor.
-        </p>
-      </div>
     </div>
   );
 }
