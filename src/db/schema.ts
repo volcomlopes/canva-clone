@@ -99,6 +99,26 @@ export const users = pgTable("user", {
 });
 
 // ============================================
+// BRAND ASSETS - Fotos oficiais da marca
+// ============================================
+export const brandAssets = pgTable("brandAsset", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  brandId: text("brandId")
+    .notNull()
+    .references(() => brands.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  category: text("category"),
+  fileName: text("fileName"),
+  fileSize: text("fileSize"),
+  uploadedBy: text("uploadedBy")
+    .references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+
+// ============================================
 // RELACIONAMENTOS
 // ============================================
 export const usersRelations = relations(users, ({ many, one }) => ({
