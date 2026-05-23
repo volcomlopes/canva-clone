@@ -276,3 +276,49 @@ export const subscriptions = pgTable("subscription", {
   createdAt: timestamp("createdAt", { mode: "date" }).notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull(),
 });
+
+// ============================================
+// BRAND KIT - Identidade visual da marca
+// ============================================
+export const brandKits = pgTable("brandKit", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  brandId: text("brandId")
+    .notNull()
+    .unique()
+    .references(() => brands.id, { onDelete: "cascade" }),
+
+  // Slots fixos de cores (nomeados)
+  colorPrimary: text("colorPrimary").default("#3B82F6"),       // azul
+  colorSecondary: text("colorSecondary").default("#1F2937"),   // cinza escuro
+  colorText: text("colorText").default("#0F172A"),             // preto suave
+  colorBackground: text("colorBackground").default("#FFFFFF"), // branco
+  colorAccent: text("colorAccent").default("#94A3B8"),         // cinza claro
+
+  // Paleta extra: JSON array com cores livres
+  // Formato: [{ name: "Cor especial", hex: "#FF0000" }, ...]
+  colorsExtra: text("colorsExtra").default("[]"),
+
+  // Logos (preencher na Parte 2)
+  logoPrimary: text("logoPrimary"),
+  logoMonoWhite: text("logoMonoWhite"),
+  logoMonoBlack: text("logoMonoBlack"),
+  logoHorizontal: text("logoHorizontal"),
+  logoVertical: text("logoVertical"),
+  favicon: text("favicon"),
+
+  // Fontes (preencher na Parte 3)
+  fontHeading: text("fontHeading"),
+  fontBody: text("fontBody"),
+
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const brandKitsRelations = relations(brandKits, ({ one }) => ({
+  brand: one(brands, {
+    fields: [brandKits.brandId],
+    references: [brands.id],
+  }),
+}));

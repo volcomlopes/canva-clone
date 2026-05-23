@@ -107,7 +107,8 @@ export type ActiveTool =
   | "settings"
   | "ai"
   | "remove-bg"
-  | "templates";
+  | "templates"
+  | "brand-assets";
 
 export const FILL_COLOR = "rgba(0,0,0,1)";
 export const STROKE_COLOR = "rgba(0,0,0,1)";

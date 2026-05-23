@@ -7,8 +7,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ResponseType } from "@/features/projects/api/use-get-project";
 import { useUpdateProject } from "@/features/projects/api/use-update-project";
 
-import { 
-  ActiveTool, 
+import {
+  ActiveTool,
   selectionDependentTools
 } from "@/features/editor/types";
 import { Navbar } from "@/features/editor/components/navbar";
@@ -30,6 +30,7 @@ import { AiSidebar } from "@/features/editor/components/ai-sidebar";
 import { TemplateSidebar } from "@/features/editor/components/template-sidebar";
 import { RemoveBgSidebar } from "@/features/editor/components/remove-bg-sidebar";
 import { SettingsSidebar } from "@/features/editor/components/settings-sidebar";
+import { BrandAssetsSidebar } from "@/features/editor/components/brand-assets-sidebar";
 
 interface EditorProps {
   initialData: ResponseType["data"];
@@ -41,7 +42,7 @@ export const Editor = ({ initialData }: EditorProps) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSave = useCallback(
     debounce(
-      (values: { 
+      (values: {
         json: string,
         height: number,
         width: number,
@@ -79,7 +80,7 @@ export const Editor = ({ initialData }: EditorProps) => {
     if (tool === activeTool) {
       return setActiveTool("select");
     }
-    
+
     setActiveTool(tool);
   }, [activeTool, editor]);
 
@@ -151,6 +152,11 @@ export const Editor = ({ initialData }: EditorProps) => {
           onChangeActiveTool={onChangeActiveTool}
         />
         <ImageSidebar
+          editor={editor}
+          activeTool={activeTool}
+          onChangeActiveTool={onChangeActiveTool}
+        />
+        <BrandAssetsSidebar
           editor={editor}
           activeTool={activeTool}
           onChangeActiveTool={onChangeActiveTool}

@@ -16,7 +16,7 @@ export const ourFileRouter = {
       return { url: file.url };
     }),
 
-  // Nova rota: upload em massa de assets da marca
+  // Rota: upload em massa de assets da marca
   brandAssetsUploader: f({
     image: {
       maxFileSize: "8MB",
@@ -50,6 +50,42 @@ export const ourFileRouter = {
         size: file.size,
         brandId: metadata.brandId,
         uploadedBy: metadata.userId,
+      };
+    }),
+
+  // Rota: upload de logos da marca (1 arquivo por vez, aceita SVG)
+  brandLogosUploader: f({
+    image: {
+      maxFileSize: "4MB",
+      maxFileCount: 1,
+    },
+  })
+    .middleware(async ({ req }) => {
+      const session = await auth();
+
+      if (!session?.user) {
+        throw new UploadThingError("Unauthorized");
+      }
+
+      if (session.user.role !== "brand_admin") {
+        throw new UploadThingError("Apenas admins da marca podem subir logos");
+      }
+
+      if (!session.user.brandId) {
+        throw new UploadThingError("Marca nao identificada");
+      }
+
+      return {
+        userId: session.user.id,
+        brandId: session.user.brandId,
+      };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return {
+        url: file.url,
+        name: file.name,
+        size: file.size,
+        brandId: metadata.brandId,
       };
     }),
 } satisfies FileRouter;

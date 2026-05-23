@@ -59,6 +59,7 @@ export function AssetsUploader() {
 
       <UploadDropzone
         endpoint="brandAssetsUploader"
+        config={{ mode: "auto" }}
         appearance={{
           container:
             "border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors py-8",
