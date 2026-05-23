@@ -2,6 +2,7 @@ import { ActiveTool, Editor, FILL_COLOR } from "@/features/editor/types";
 import { ToolSidebarClose } from "@/features/editor/components/tool-sidebar-close";
 import { ToolSidebarHeader } from "@/features/editor/components/tool-sidebar-header";
 import { ColorPicker } from "@/features/editor/components/color-picker";
+import { BrandColorsPalette } from "@/features/editor/components/brand-colors-palette";
 
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,6 +41,10 @@ export const FillColorSidebar = ({
       />
       <ScrollArea>
         <div className="p-4 space-y-6">
+          <BrandColorsPalette
+            value={value}
+            onChange={onChange}
+          />
           <ColorPicker
             value={value}
             onChange={onChange}
