@@ -10,7 +10,8 @@ export const JSON_KEYS = [
   "linkData",
   "editable",
   "extensionType",
-  "extension"
+  "extension",
+  "isEditable"
 ];
 
 export const filters = [
@@ -261,5 +262,7 @@ export interface Editor {
   getActiveStrokeColor: () => string;
   getActiveStrokeWidth: () => number;
   getActiveStrokeDashArray: () => number[];
+  toggleEditable: () => void;
+  getActiveEditable: () => boolean;
   selectedObjects: fabric.Object[];
 };

@@ -9,10 +9,10 @@ import projects from "./projects";
 import subscriptions from "./subscriptions";
 import brandAssets from "./brand-assets";
 import brandKit from "./brand-kit";
+import brandSettings from "./brand-settings";
 
 import authConfig from "@/auth.config";
 
-// Revert to "edge" if planning on running on the edge
 export const runtime = "nodejs";
 
 function getAuthConfig(c: Context): AuthConfig {
@@ -33,7 +33,8 @@ const routes = app
   .route("/projects", projects)
   .route("/subscriptions", subscriptions)
   .route("/brand-assets", brandAssets)
-  .route("/brand-kit", brandKit);
+  .route("/brand-kit", brandKit)
+  .route("/brand-settings", brandSettings);
 
 export const GET = handle(app);
 export const POST = handle(app);

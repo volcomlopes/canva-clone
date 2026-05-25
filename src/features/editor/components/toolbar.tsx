@@ -1,34 +1,40 @@
 import { useState } from "react";
+import { useParams } from "next/navigation";
 
-import { 
-  FaBold, 
-  FaItalic, 
-  FaStrikethrough, 
+import {
+  FaBold,
+  FaItalic,
+  FaStrikethrough,
   FaUnderline
 } from "react-icons/fa";
 import { TbColorFilter } from "react-icons/tb";
 import { BsBorderWidth } from "react-icons/bs";
 import { RxTransparencyGrid } from "react-icons/rx";
-import { 
-  ArrowUp, 
-  ArrowDown, 
-  ChevronDown, 
-  AlignLeft, 
-  AlignCenter, 
+import {
+  ArrowUp,
+  ArrowDown,
+  ChevronDown,
+  AlignLeft,
+  AlignCenter,
   AlignRight,
   Trash,
   SquareSplitHorizontal,
-  Copy
+  Copy,
+  Lock,
+  Unlock,
 } from "lucide-react";
 
 import { isTextType } from "@/features/editor/utils";
 import { FontSizeInput } from "@/features/editor/components/font-size-input";
-import { 
-  ActiveTool, 
-  Editor, 
-  FONT_SIZE, 
+import {
+  ActiveTool,
+  Editor,
+  FONT_SIZE,
   FONT_WEIGHT
 } from "@/features/editor/types";
+
+import { useGetProject } from "@/features/projects/api/use-get-project";
+import { useGetBrandSettings } from "@/features/brand-settings/api/use-get-brand-settings";
 
 import { cn } from "@/lib/utils";
 import { Hint } from "@/components/hint";
@@ -45,6 +51,19 @@ export const Toolbar = ({
   activeTool,
   onChangeActiveTool,
 }: ToolbarProps) => {
+  const params = useParams();
+  const projectId = params?.projectId as string;
+
+  const { data: project } = useGetProject(projectId);
+  const { data: brandSettings } = useGetBrandSettings();
+
+  const isBrandAdmin = brandSettings?.userRole === "brand_admin";
+  const isTemplate = project?.isTemplate === true;
+  const showControls = brandSettings?.showTemplateControls === true;
+
+  // Mostra o botao de bloqueio se: user e brand_admin E (esta editando template OU brand tem toggle ligado)
+  const canToggleEditable = isBrandAdmin && (isTemplate || showControls);
+
   const initialFillColor = editor?.getActiveFillColor();
   const initialStrokeColor = editor?.getActiveStrokeColor();
   const initialFontFamily = editor?.getActiveFontFamily();
@@ -53,7 +72,8 @@ export const Toolbar = ({
   const initialFontLinethrough = editor?.getActiveFontLinethrough();
   const initialFontUnderline = editor?.getActiveFontUnderline();
   const initialTextAlign = editor?.getActiveTextAlign();
-  const initialFontSize = editor?.getActiveFontSize() || FONT_SIZE
+  const initialFontSize = editor?.getActiveFontSize() || FONT_SIZE;
+  const initialIsEditable = editor?.getActiveEditable() || false;
 
   const [properties, setProperties] = useState({
     fillColor: initialFillColor,
@@ -65,6 +85,7 @@ export const Toolbar = ({
     fontUnderline: initialFontUnderline,
     textAlign: initialTextAlign,
     fontSize: initialFontSize,
+    isEditable: initialIsEditable,
   });
 
   const selectedObject = editor?.selectedObjects[0];
@@ -151,6 +172,18 @@ export const Toolbar = ({
     setProperties((current) => ({
       ...current,
       fontUnderline: newValue,
+    }));
+  };
+
+  const handleToggleEditable = () => {
+    if (!selectedObject) {
+      return;
+    }
+
+    editor?.toggleEditable();
+    setProperties((current) => ({
+      ...current,
+      isEditable: !current.isEditable,
     }));
   };
 
@@ -448,6 +481,45 @@ export const Toolbar = ({
           </Button>
         </Hint>
       </div>
+
+      {/* BOTAO DE BLOQUEIO / EDITAVEL - so brand_admin com toggle ligado ou em template */}
+      {canToggleEditable && (
+        <div className="flex items-center h-full justify-center ml-auto pl-2 border-l">
+          <Hint
+            label={
+              properties.isEditable
+                ? "Vendedor PODE editar"
+                : "Vendedor NAO pode editar"
+            }
+            side="bottom"
+            sideOffset={5}
+          >
+            <Button
+              onClick={handleToggleEditable}
+              size="sm"
+              variant={properties.isEditable ? "default" : "outline"}
+              className={cn(
+                "gap-2",
+                properties.isEditable
+                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                  : "text-slate-600"
+              )}
+            >
+              {properties.isEditable ? (
+                <>
+                  <Unlock className="size-4" />
+                  Editavel
+                </>
+              ) : (
+                <>
+                  <Lock className="size-4" />
+                  Travado
+                </>
+              )}
+            </Button>
+          </Hint>
+        </div>
+      )}
     </div>
   );
 };

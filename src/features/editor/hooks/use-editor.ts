@@ -606,6 +606,37 @@ const buildEditor = ({
 
       return value;
     },
+    toggleEditable: () => {
+      const selectedObject = selectedObjects[0];
+
+      if (!selectedObject) {
+        return;
+      }
+
+      // @ts-ignore - propriedade custom
+      const current = selectedObject.get("isEditable") || false;
+      const newValue = !current;
+
+      canvas.getActiveObjects().forEach((object) => {
+        // @ts-ignore - propriedade custom
+        object.set({ isEditable: newValue });
+      });
+
+      canvas.renderAll();
+      save();
+    },
+    getActiveEditable: () => {
+      const selectedObject = selectedObjects[0];
+
+      if (!selectedObject) {
+        return false;
+      }
+
+      // @ts-ignore - propriedade custom
+      const value = selectedObject.get("isEditable") || false;
+
+      return value;
+    },
     selectedObjects,
   };
 };
