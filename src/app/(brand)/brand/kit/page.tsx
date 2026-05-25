@@ -28,7 +28,6 @@ export default async function BrandKitPage() {
     kit = existing || null;
   }
 
-  // Parse das cores extras
   let extraColors: ExtraColor[] = [];
   if (kit?.colorsExtra) {
     try {
@@ -70,6 +69,12 @@ export default async function BrandKitPage() {
           logoHorizontal: kit?.logoHorizontal || null,
           logoVertical: kit?.logoVertical || null,
           favicon: kit?.favicon || null,
+        }}
+        fonts={{
+          fontHeading: kit?.fontHeading || null,
+          fontSubheading: kit?.fontSubheading || null,
+          fontBody: kit?.fontBody || null,
+          fontHighlight: kit?.fontHighlight || null,
         }}
       />
     </div>

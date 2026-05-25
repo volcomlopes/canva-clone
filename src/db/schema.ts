@@ -308,9 +308,11 @@ export const brandKits = pgTable("brandKit", {
   logoVertical: text("logoVertical"),
   favicon: text("favicon"),
 
-  // Fontes (preencher na Parte 3)
+  // Fontes (4 slots)
   fontHeading: text("fontHeading"),
+  fontSubheading: text("fontSubheading"),
   fontBody: text("fontBody"),
+  fontHighlight: text("fontHighlight"),
 
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),

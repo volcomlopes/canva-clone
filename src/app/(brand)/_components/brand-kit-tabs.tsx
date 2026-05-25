@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { BrandKitColors } from "@/app/(brand)/_components/brand-kit-colors";
 import { BrandKitLogos } from "@/app/(brand)/_components/brand-kit-logos";
+import { BrandKitFonts } from "@/app/(brand)/_components/brand-kit-fonts";
 
 import { cn } from "@/lib/utils";
 
@@ -29,17 +30,23 @@ interface BrandKitTabsProps {
     logoVertical: string | null;
     favicon: string | null;
   };
+  fonts: {
+    fontHeading: string | null;
+    fontSubheading: string | null;
+    fontBody: string | null;
+    fontHighlight: string | null;
+  };
 }
 
 type Tab = "cores" | "logos" | "fontes";
 
-const TABS: { value: Tab; label: string; disabled?: boolean }[] = [
+const TABS: { value: Tab; label: string }[] = [
   { value: "cores", label: "Cores" },
   { value: "logos", label: "Logos" },
-  { value: "fontes", label: "Fontes", disabled: true },
+  { value: "fontes", label: "Fontes" },
 ];
 
-export function BrandKitTabs({ colors, logos }: BrandKitTabsProps) {
+export function BrandKitTabs({ colors, logos, fonts }: BrandKitTabsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("cores");
 
   return (
@@ -50,17 +57,13 @@ export function BrandKitTabs({ colors, logos }: BrandKitTabsProps) {
           {TABS.map((tab) => (
             <button
               key={tab.value}
-              onClick={() => !tab.disabled && setActiveTab(tab.value)}
-              disabled={tab.disabled}
+              onClick={() => setActiveTab(tab.value)}
               className={cn(
                 "px-4 py-2.5 text-sm font-medium transition-colors border-b-2",
-                tab.disabled
-                  ? "text-slate-400 cursor-not-allowed border-transparent"
-                  : activeTab === tab.value
+                activeTab === tab.value
                   ? "text-slate-900 border-blue-600"
                   : "text-slate-600 hover:text-slate-900 border-transparent"
               )}
-              title={tab.disabled ? "Em breve (Parte 3)" : ""}
             >
               {tab.label}
             </button>
@@ -71,6 +74,7 @@ export function BrandKitTabs({ colors, logos }: BrandKitTabsProps) {
       {/* Conteudo */}
       {activeTab === "cores" && <BrandKitColors initialColors={colors} />}
       {activeTab === "logos" && <BrandKitLogos initialLogos={logos} />}
+      {activeTab === "fontes" && <BrandKitFonts initialFonts={fonts} />}
     </div>
   );
 }

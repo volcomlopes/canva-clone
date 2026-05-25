@@ -32,7 +32,6 @@ const app = new Hono().get("/", verifyAuth(), async (c) => {
     return c.json({ data: null });
   }
 
-  // Parse das cores extras
   let extraColors: { name: string; hex: string }[] = [];
   if (kit.colorsExtra) {
     try {
@@ -57,7 +56,9 @@ const app = new Hono().get("/", verifyAuth(), async (c) => {
       logoVertical: kit.logoVertical,
       favicon: kit.favicon,
       fontHeading: kit.fontHeading,
+      fontSubheading: kit.fontSubheading,
       fontBody: kit.fontBody,
+      fontHighlight: kit.fontHighlight,
     },
   });
 });

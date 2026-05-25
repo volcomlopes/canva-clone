@@ -31,6 +31,7 @@ import { TemplateSidebar } from "@/features/editor/components/template-sidebar";
 import { RemoveBgSidebar } from "@/features/editor/components/remove-bg-sidebar";
 import { SettingsSidebar } from "@/features/editor/components/settings-sidebar";
 import { BrandAssetsSidebar } from "@/features/editor/components/brand-assets-sidebar";
+import { useLoadBrandFonts } from "@/features/editor/hooks/use-load-brand-fonts";
 
 interface EditorProps {
   initialData: ResponseType["data"];
@@ -38,6 +39,9 @@ interface EditorProps {
 
 export const Editor = ({ initialData }: EditorProps) => {
   const { mutate } = useUpdateProject(initialData.id);
+
+  // Carrega as fontes da marca quando o editor abrir
+  useLoadBrandFonts();
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSave = useCallback(
