@@ -33,6 +33,7 @@ export const brands = pgTable("brand", {
   logoUrl: text("logoUrl"),
   primaryColor: text("primaryColor"),
   secondaryColor: text("secondaryColor"),
+  showTemplateControls: boolean("showTemplateControls").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),

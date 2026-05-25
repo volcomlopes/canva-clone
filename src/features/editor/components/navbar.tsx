@@ -4,19 +4,22 @@ import { CiFileOn } from "react-icons/ci";
 import { BsCloudCheck, BsCloudSlash } from "react-icons/bs";
 import { useFilePicker } from "use-file-picker";
 import { useMutationState } from "@tanstack/react-query";
-import { 
-  ChevronDown, 
-  Download, 
-  Loader, 
-  MousePointerClick, 
-  Redo2, 
-  Undo2
+import {
+  ChevronDown,
+  Download,
+  Loader,
+  MousePointerClick,
+  Redo2,
+  Undo2,
+  BookmarkPlus,
 } from "lucide-react";
 
 import { UserButton } from "@/features/auth/components/user-button";
 
 import { ActiveTool, Editor } from "@/features/editor/types";
 import { Logo } from "@/features/editor/components/logo";
+
+import { useSaveAsTemplate } from "@/features/projects/api/use-save-as-template";
 
 import { cn } from "@/lib/utils";
 import { Hint } from "@/components/hint";
@@ -55,6 +58,8 @@ export const Navbar = ({
   const isError = currentStatus === "error";
   const isPending = currentStatus === "pending";
 
+  const saveAsTemplate = useSaveAsTemplate(id);
+
   const { openFilePicker } = useFilePicker({
     accept: ".json",
     onFilesSuccessfullySelected: ({ plainFiles }: any) => {
@@ -68,6 +73,14 @@ export const Navbar = ({
       }
     },
   });
+
+  const handleSaveAsTemplate = () => {
+    const confirmed = window.confirm(
+      "Salvar este projeto como template? Ele ficara disponivel para todos os usuarios da sua marca usarem como ponto de partida."
+    );
+    if (!confirmed) return;
+    saveAsTemplate.mutate();
+  };
 
   return (
     <nav className="w-full flex items-center p-4 h-[68px] gap-x-8 border-b lg:pl-[34px]">
@@ -90,6 +103,19 @@ export const Navbar = ({
                 <p>Open</p>
                 <p className="text-xs text-muted-foreground">
                   Open a JSON file
+                </p>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={handleSaveAsTemplate}
+              disabled={saveAsTemplate.isPending}
+              className="flex items-center gap-x-2"
+            >
+              <BookmarkPlus className="size-8" />
+              <div>
+                <p>Salvar como Template</p>
+                <p className="text-xs text-muted-foreground">
+                  Disponibiliza para sua marca
                 </p>
               </div>
             </DropdownMenuItem>
@@ -127,7 +153,7 @@ export const Navbar = ({
           </Button>
         </Hint>
         <Separator orientation="vertical" className="mx-2" />
-        {isPending && ( 
+        {isPending && (
           <div className="flex items-center gap-x-2">
             <Loader className="size-4 animate-spin text-muted-foreground" />
             <div className="text-xs text-muted-foreground">
@@ -135,7 +161,7 @@ export const Navbar = ({
             </div>
           </div>
         )}
-        {!isPending && isError && ( 
+        {!isPending && isError && (
           <div className="flex items-center gap-x-2">
             <BsCloudSlash className="size-[20px] text-muted-foreground" />
             <div className="text-xs text-muted-foreground">
@@ -143,7 +169,7 @@ export const Navbar = ({
             </div>
           </div>
         )}
-        {!isPending && !isError && ( 
+        {!isPending && !isError && (
           <div className="flex items-center gap-x-2">
             <BsCloudCheck className="size-[20px] text-muted-foreground" />
             <div className="text-xs text-muted-foreground">
@@ -152,6 +178,21 @@ export const Navbar = ({
           </div>
         )}
         <div className="ml-auto flex items-center gap-x-4">
+          <Hint label="Salvar como Template" side="bottom" sideOffset={10}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveAsTemplate}
+              disabled={saveAsTemplate.isPending}
+            >
+              {saveAsTemplate.isPending ? (
+                <Loader className="size-4 mr-2 animate-spin" />
+              ) : (
+                <BookmarkPlus className="size-4 mr-2" />
+              )}
+              Salvar Template
+            </Button>
+          </Hint>
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="ghost">

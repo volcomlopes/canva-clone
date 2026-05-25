@@ -5,10 +5,10 @@ import { verifyAuth } from "@hono/auth-js";
 import { zValidator } from "@hono/zod-validator";
 
 import { db } from "@/db/drizzle";
-import { projects, projectsInsertSchema } from "@/db/schema";
+import { projects, projectsInsertSchema, users } from "@/db/schema";
 
 const app = new Hono()
-  .get(
+.get(
     "/templates",
     verifyAuth(),
     zValidator(
@@ -19,14 +19,37 @@ const app = new Hono()
       }),
     ),
     async (c) => {
+      const auth = c.get("authUser");
       const { page, limit } = c.req.valid("query");
 
+      if (!auth.token?.id) {
+        return c.json({ data: [] });
+      }
+
+      // Busca o brandId do usuario logado
+      const [dbUser] = await db
+        .select({ brandId: users.brandId })
+        .from(users)
+        .where(eq(users.id, auth.token.id as string))
+        .limit(1);
+
+      // Sem brandId: nao retorna nenhum template
+      if (!dbUser?.brandId) {
+        return c.json({ data: [] });
+      }
+
+      // Retorna SO templates da marca do usuario
       const data = await db
         .select()
         .from(projects)
-        .where(eq(projects.isTemplate, true))
+        .where(
+          and(
+            eq(projects.isTemplate, true),
+            eq(projects.brandId, dbUser.brandId),
+          )
+        )
         .limit(limit)
-        .offset((page -1) * limit)
+        .offset((page - 1) * limit)
         .orderBy(
           asc(projects.isPro),
           desc(projects.updatedAt),
@@ -256,6 +279,108 @@ const app = new Hono()
 
       return c.json({ data: data[0] });
     },
+  )
+  
+  .post(
+    "/",
+    verifyAuth(),
+    zValidator(
+      "json",
+      projectsInsertSchema.pick({
+        name: true,
+        json: true,
+        width: true,
+        height: true,
+      }),
+    ),
+    async (c) => {
+      const auth = c.get("authUser");
+      const { name, json, height, width } = c.req.valid("json");
+
+      if (!auth.token?.id) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      const data = await db
+        .insert(projects)
+        .values({
+          name,
+          json,
+          width,
+          height,
+          userId: auth.token.id,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      if (!data[0]) {
+        return c.json({ error: "Something went wrong" }, 400);
+      }
+
+      return c.json({ data: data[0] });
+    },
+  )
+  .post(
+    "/:id/save-as-template",
+    verifyAuth(),
+    zValidator("param", z.object({ id: z.string() })),
+    async (c) => {
+      const auth = c.get("authUser");
+      const { id } = c.req.valid("param");
+
+      if (!auth.token?.id) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Busca brandId do usuario
+      const [dbUser] = await db
+        .select({ brandId: users.brandId })
+        .from(users)
+        .where(eq(users.id, auth.token.id as string))
+        .limit(1);
+
+      if (!dbUser?.brandId) {
+        return c.json({ error: "Marca nao identificada" }, 400);
+      }
+
+      // Busca projeto original
+      const [project] = await db
+        .select()
+        .from(projects)
+        .where(
+          and(
+            eq(projects.id, id),
+            eq(projects.userId, auth.token.id),
+          ),
+        )
+        .limit(1);
+
+      if (!project) {
+        return c.json({ error: "Projeto nao encontrado" }, 404);
+      }
+
+      // Cria copia como template
+      const [template] = await db
+        .insert(projects)
+        .values({
+          name: `[Template] ${project.name}`,
+          json: project.json,
+          width: project.width,
+          height: project.height,
+          thumbnailUrl: project.thumbnailUrl,
+          userId: auth.token.id,
+          brandId: dbUser.brandId,
+          isTemplate: true,
+          isPro: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      return c.json({ data: template });
+    },
   );
+  ;
 
 export default app;

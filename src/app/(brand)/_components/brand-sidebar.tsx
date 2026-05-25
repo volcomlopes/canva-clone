@@ -9,6 +9,7 @@ import {
   UsersIcon,
   ImageIcon,
   PaletteIcon,
+  SettingsIcon,
   ArrowLeftIcon,
 } from "lucide-react";
 
@@ -39,6 +40,11 @@ const menuItems = [
     label: "Brand Kit",
     href: "/brand/kit",
     icon: PaletteIcon,
+  },
+  {
+    label: "Configurações",
+    href: "/brand/settings",
+    icon: SettingsIcon,
   },
 ];
 
