@@ -240,6 +240,10 @@ export const projects = pgTable("project", {
   thumbnailUrl: text("thumbnailUrl"),
   isTemplate: boolean("isTemplate"),
   isPro: boolean("isPro"),
+   // Vinculos entre projeto e template
+  templateVisibility: text("templateVisibility").default("personal"),
+  sourceTemplateId: text("sourceTemplateId"),
+  templateChildId: text("templateChildId"),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull(),
 });

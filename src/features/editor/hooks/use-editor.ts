@@ -622,7 +622,8 @@ const buildEditor = ({
         object.set({ isEditable: newValue });
       });
 
-      canvas.renderAll();
+      // Forca re-render pra borda aparecer/sumir
+      canvas.requestRenderAll();
       save();
     },
     getActiveEditable: () => {

@@ -32,6 +32,9 @@ import { RemoveBgSidebar } from "@/features/editor/components/remove-bg-sidebar"
 import { SettingsSidebar } from "@/features/editor/components/settings-sidebar";
 import { BrandAssetsSidebar } from "@/features/editor/components/brand-assets-sidebar";
 import { useLoadBrandFonts } from "@/features/editor/hooks/use-load-brand-fonts";
+import { useEditableBorders } from "@/features/editor/hooks/use-editable-borders";
+import { useSellerMode } from "@/features/editor/hooks/use-seller-mode";
+import { useEditableHover } from "@/features/editor/hooks/use-editable-hover";
 
 interface EditorProps {
   initialData: ResponseType["data"];
@@ -71,6 +74,15 @@ export const Editor = ({ initialData }: EditorProps) => {
     clearSelectionCallback: onClearSelection,
     saveCallback: debouncedSave,
   });
+
+// Borda azul permanente (so admin)
+  useEditableBorders(editor?.canvas || null);
+
+  // Modo Vendedor: aplica travas em elementos do template (so user/dealership_admin)
+  useSellerMode(editor?.canvas || null);
+
+  // Hover de borda azul nos editaveis (so vendedor)
+  useEditableHover(editor?.canvas || null);
 
   const onChangeActiveTool = useCallback((tool: ActiveTool) => {
     if (tool === "draw") {

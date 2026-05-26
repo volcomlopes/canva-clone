@@ -1,16 +1,18 @@
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { AlertTriangle, Loader, Crown } from "lucide-react";
 
 import { usePaywall } from "@/features/subscriptions/hooks/use-paywall";
 
-import { 
-  ActiveTool, 
+import {
+  ActiveTool,
   Editor,
 } from "@/features/editor/types";
 import { ToolSidebarClose } from "@/features/editor/components/tool-sidebar-close";
 import { ToolSidebarHeader } from "@/features/editor/components/tool-sidebar-header";
 
 import { ResponseType, useGetTemplates } from "@/features/projects/api/use-get-templates";
+import { useDuplicateFromTemplate } from "@/features/projects/api/use-duplicate-from-template";
 
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,12 +29,14 @@ export const TemplateSidebar = ({
   activeTool,
   onChangeActiveTool,
 }: TemplateSidebarProps) => {
+  const router = useRouter();
   const { shouldBlock, triggerPaywall } = usePaywall();
+  const duplicateFromTemplate = useDuplicateFromTemplate();
 
   const [ConfirmDialog, confirm] = useConfirm(
-    "Are you sure?",
-    "You are about to replace the current project with this template."
-  )
+    "Usar este template?",
+    "Sera criado um novo projeto baseado nesse template. Voce podera edita-lo livremente."
+  );
 
   const { data, isLoading, isError } = useGetTemplates({
     limit: "20",
@@ -50,10 +54,14 @@ export const TemplateSidebar = ({
     }
 
     const ok = await confirm();
+    if (!ok) return;
 
-    if (ok) {
-      editor?.loadJson(template.json);
-    }
+    duplicateFromTemplate.mutate(template.id, {
+      onSuccess: function (response) {
+        const newProjectId = response.data.id;
+        router.push(`/editor/${newProjectId}`);
+      },
+    });
   };
 
   return (
@@ -66,7 +74,7 @@ export const TemplateSidebar = ({
       <ConfirmDialog />
       <ToolSidebarHeader
         title="Templates"
-        description="Choose from a variety of templates to get started"
+        description="Escolha um template para comecar"
       />
       {isLoading && (
         <div className="flex items-center justify-center flex-1">
@@ -77,22 +85,23 @@ export const TemplateSidebar = ({
         <div className="flex flex-col gap-y-4 items-center justify-center flex-1">
           <AlertTriangle className="size-4 text-muted-foreground" />
           <p className="text-muted-foreground text-xs">
-            Failed to fetch templates
+            Erro ao carregar templates
           </p>
         </div>
       )}
       <ScrollArea>
         <div className="p-4">
           <div className="grid grid-cols-2 gap-4">
-            {data && data.map((template) => {
+            {data && data.map(function (template) {
               return (
                 <button
-                  style={{ 
-                    aspectRatio: `${template.width}/${template.height}`
+                  style={{
+                    aspectRatio: `${template.width}/${template.height}`,
                   }}
-                  onClick={() => onClick(template)}
+                  onClick={function () { onClick(template); }}
                   key={template.id}
-                  className="relative w-full group hover:opacity-75 transition bg-muted rounded-sm overflow-hidden border"
+                  disabled={duplicateFromTemplate.isPending}
+                  className="relative w-full group hover:opacity-75 transition bg-muted rounded-sm overflow-hidden border disabled:opacity-50"
                 >
                   <Image
                     fill
@@ -111,7 +120,7 @@ export const TemplateSidebar = ({
                     {template.name}
                   </div>
                 </button>
-              )
+              );
             })}
           </div>
         </div>

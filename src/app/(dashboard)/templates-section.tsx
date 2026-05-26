@@ -1,25 +1,33 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader, TriangleAlert } from "lucide-react";
+import { Loader, TriangleAlert, ChevronDown } from "lucide-react";
 
 import { usePaywall } from "@/features/subscriptions/hooks/use-paywall";
 
 import { ResponseType, useGetTemplates } from "@/features/projects/api/use-get-templates";
-import { useCreateProject } from "@/features/projects/api/use-create-project";
+import { useDuplicateFromTemplate } from "@/features/projects/api/use-duplicate-from-template";
+
+import { Button } from "@/components/ui/button";
 
 import { TemplateCard } from "./template-card";
+
+const INITIAL_LIMIT = 12;
+const LOAD_MORE_STEP = 12;
 
 export const TemplatesSection = () => {
   const { shouldBlock, triggerPaywall } = usePaywall();
   const router = useRouter();
-  const mutation = useCreateProject();
+  const duplicateFromTemplate = useDuplicateFromTemplate();
 
-  const { 
-    data, 
-    isLoading, 
+  const [limit, setLimit] = useState(INITIAL_LIMIT);
+
+  const {
+    data,
+    isLoading,
     isError
-  } = useGetTemplates({ page: "1", limit: "4" });
+  } = useGetTemplates({ page: "1", limit: String(limit) });
 
   const onClick = (template: ResponseType["data"][0]) => {
     if (template.isPro && shouldBlock) {
@@ -27,26 +35,27 @@ export const TemplatesSection = () => {
       return;
     }
 
-    mutation.mutate(
-      {
-        name: `${template.name} project`,
-        json: template.json,
-        width: template.width,
-        height: template.height,
+    duplicateFromTemplate.mutate(template.id, {
+      onSuccess: function (response) {
+        router.push(`/editor/${response.data.id}`);
       },
-      {
-        onSuccess: ({ data }) => {
-          router.push(`/editor/${data.id}`);
-        },
-      },
-    );
+    });
   };
+
+  const handleLoadMore = () => {
+    setLimit(function (current) {
+      return current + LOAD_MORE_STEP;
+    });
+  };
+
+  // Quando data retorna menos que o limite, significa que nao tem mais templates
+  const hasMore = data && data.length === limit;
 
   if (isLoading) {
     return (
       <div className="space-y-4">
         <h3 className="font-semibold text-lg">
-          Start from a template
+          Comece com um template
         </h3>
         <div className="flex items-center justify-center h-32">
           <Loader className="size-6 text-muted-foreground animate-spin" />
@@ -59,12 +68,12 @@ export const TemplatesSection = () => {
     return (
       <div className="space-y-4">
         <h3 className="font-semibold text-lg">
-          Start from a template
+          Comece com um template
         </h3>
         <div className="flex flex-col gap-y-4 items-center justify-center h-32">
           <TriangleAlert className="size-6 text-muted-foreground" />
           <p>
-            Failed to load templates
+            Erro ao carregar templates
           </p>
         </div>
       </div>
@@ -78,7 +87,7 @@ export const TemplatesSection = () => {
   return (
     <div>
       <h3 className="font-semibold text-lg">
-        Start from a template
+        Comece com um template
       </h3>
       <div className="grid grid-cols-2 md:grid-cols-4 mt-4 gap-4">
         {data?.map((template) => (
@@ -87,7 +96,7 @@ export const TemplatesSection = () => {
             title={template.name}
             imageSrc={template.thumbnailUrl || ""}
             onClick={() => onClick(template)}
-            disabled={mutation.isPending}
+            disabled={duplicateFromTemplate.isPending}
             description={`${template.width} x ${template.height} px`}
             width={template.width}
             height={template.height}
@@ -95,6 +104,19 @@ export const TemplatesSection = () => {
           />
         ))}
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center mt-6">
+          <Button
+            variant="outline"
+            onClick={handleLoadMore}
+            disabled={duplicateFromTemplate.isPending}
+          >
+            <ChevronDown className="size-4 mr-2" />
+            Ver mais templates
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
