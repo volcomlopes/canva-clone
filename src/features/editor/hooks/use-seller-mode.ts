@@ -9,7 +9,8 @@ import { useGetBrandSettings } from "@/features/brand-settings/api/use-get-brand
  * definido (ou seja, foi carregado de um template).
  *
  * Elementos travados: nao podem ser selecionados/movidos/redimensionados.
- * Elementos editaveis: vendedor pode editar SO o conteudo (texto/imagem).
+ * Elementos editaveis: vendedor pode editar conteudo, mover, redimensionar e girar.
+ *                      Mas nao pode mudar cor/fonte/tamanho (controlado pela toolbar).
  */
 export const useSellerMode = (canvas: fabric.Canvas | null) => {
   const { data: brandSettings } = useGetBrandSettings();
@@ -43,19 +44,20 @@ export const useSellerMode = (canvas: fabric.Canvas | null) => {
         const isEditable = obj.get && obj.get("isEditable");
 
         if (isEditable === true) {
-          // Elemento EDITAVEL: vendedor pode mexer apenas no conteudo
-          // - Trava posicao
-          // - Trava tamanho
-          // - Trava rotacao
-          // - Permite duplo clique pra editar texto
+          // Elemento EDITAVEL: vendedor pode mover, escalar e girar livremente
+          // - Pode mover (X e Y)
+          // - Pode redimensionar (largura/altura)
+          // - Pode rotacionar
+          // - Pode editar conteudo (duplo clique no texto)
+          // - Cor/fonte/tamanho de fonte sao bloqueados na toolbar
           obj.set({
-            lockMovementX: true,
-            lockMovementY: true,
-            lockScalingX: true,
-            lockScalingY: true,
-            lockRotation: true,
-            hasControls: false,
-            hoverCursor: "pointer",
+            lockMovementX: false,
+            lockMovementY: false,
+            lockScalingX: false,
+            lockScalingY: false,
+            lockRotation: false,
+            hasControls: true,
+            hoverCursor: "move",
             selectable: true,
             evented: true,
           });

@@ -1,15 +1,15 @@
 import { fabric } from "fabric";
 import { useCallback, useState, useMemo, useRef } from "react";
 
-import { 
-  Editor, 
+import {
+  Editor,
   FILL_COLOR,
   STROKE_WIDTH,
   STROKE_COLOR,
   CIRCLE_OPTIONS,
   DIAMOND_OPTIONS,
   TRIANGLE_OPTIONS,
-  BuildEditorProps, 
+  BuildEditorProps,
   RECTANGLE_OPTIONS,
   EditorHookProps,
   STROKE_DASH_ARRAY,
@@ -20,9 +20,9 @@ import {
   JSON_KEYS,
 } from "@/features/editor/types";
 import { useHistory } from "@/features/editor/hooks/use-history";
-import { 
-  createFilter, 
-  downloadFile, 
+import {
+  createFilter,
+  downloadFile,
   isTextType,
   transformText
 } from "@/features/editor/utils";
@@ -207,6 +207,7 @@ const buildEditor = ({
           canvas.renderAll();
         }
       });
+      save();
     },
     addImage: (value: string) => {
       fabric.Image.fromURL(
@@ -258,6 +259,7 @@ const buildEditor = ({
         }
       });
       canvas.renderAll();
+      save();
     },
     getActiveFontSize: () => {
       const selectedObject = selectedObjects[0];
@@ -281,6 +283,7 @@ const buildEditor = ({
         }
       });
       canvas.renderAll();
+      save();
     },
     getActiveTextAlign: () => {
       const selectedObject = selectedObjects[0];
@@ -304,6 +307,7 @@ const buildEditor = ({
         }
       });
       canvas.renderAll();
+      save();
     },
     getActiveFontUnderline: () => {
       const selectedObject = selectedObjects[0];
@@ -327,6 +331,7 @@ const buildEditor = ({
         }
       });
       canvas.renderAll();
+      save();
     },
     getActiveFontLinethrough: () => {
       const selectedObject = selectedObjects[0];
@@ -350,6 +355,7 @@ const buildEditor = ({
         }
       });
       canvas.renderAll();
+      save();
     },
     getActiveFontStyle: () => {
       const selectedObject = selectedObjects[0];
@@ -373,12 +379,14 @@ const buildEditor = ({
         }
       });
       canvas.renderAll();
+      save();
     },
     changeOpacity: (value: number) => {
       canvas.getActiveObjects().forEach((object) => {
         object.set({ opacity: value });
       });
       canvas.renderAll();
+      save();
     },
     bringForward: () => {
       canvas.getActiveObjects().forEach((object) => {
@@ -386,9 +394,10 @@ const buildEditor = ({
       });
 
       canvas.renderAll();
-      
+
       const workspace = getWorkspace();
       workspace?.sendToBack();
+      save();
     },
     sendBackwards: () => {
       canvas.getActiveObjects().forEach((object) => {
@@ -398,6 +407,7 @@ const buildEditor = ({
       canvas.renderAll();
       const workspace = getWorkspace();
       workspace?.sendToBack();
+      save();
     },
     changeFontFamily: (value: string) => {
       setFontFamily(value);
@@ -409,6 +419,7 @@ const buildEditor = ({
         }
       });
       canvas.renderAll();
+      save();
     },
     changeFillColor: (value: string) => {
       setFillColor(value);
@@ -416,6 +427,7 @@ const buildEditor = ({
         object.set({ fill: value });
       });
       canvas.renderAll();
+      save();
     },
     changeStrokeColor: (value: string) => {
       setStrokeColor(value);
@@ -430,6 +442,7 @@ const buildEditor = ({
       });
       canvas.freeDrawingBrush.color = value;
       canvas.renderAll();
+      save();
     },
     changeStrokeWidth: (value: number) => {
       setStrokeWidth(value);
@@ -438,6 +451,7 @@ const buildEditor = ({
       });
       canvas.freeDrawingBrush.width = value;
       canvas.renderAll();
+      save();
     },
     changeStrokeDashArray: (value: number[]) => {
       setStrokeDashArray(value);
@@ -445,6 +459,7 @@ const buildEditor = ({
         object.set({ strokeDashArray: value });
       });
       canvas.renderAll();
+      save();
     },
     addCircle: () => {
       const object = new fabric.Circle({
@@ -534,6 +549,37 @@ const buildEditor = ({
       );
       addToCanvas(object);
     },
+    toggleEditable: () => {
+      const selectedObject = selectedObjects[0];
+
+      if (!selectedObject) {
+        return;
+      }
+
+      // @ts-ignore - propriedade custom
+      const current = selectedObject.get("isEditable") || false;
+      const newValue = !current;
+
+      canvas.getActiveObjects().forEach((object) => {
+        // @ts-ignore - propriedade custom
+        object.set({ isEditable: newValue });
+      });
+
+      canvas.requestRenderAll();
+      save();
+    },
+    getActiveEditable: () => {
+      const selectedObject = selectedObjects[0];
+
+      if (!selectedObject) {
+        return false;
+      }
+
+      // @ts-ignore - propriedade custom
+      const value = selectedObject.get("isEditable") || false;
+
+      return value;
+    },
     canvas,
     getActiveFontWeight: () => {
       const selectedObject = selectedObjects[0];
@@ -606,38 +652,6 @@ const buildEditor = ({
 
       return value;
     },
-    toggleEditable: () => {
-      const selectedObject = selectedObjects[0];
-
-      if (!selectedObject) {
-        return;
-      }
-
-      // @ts-ignore - propriedade custom
-      const current = selectedObject.get("isEditable") || false;
-      const newValue = !current;
-
-      canvas.getActiveObjects().forEach((object) => {
-        // @ts-ignore - propriedade custom
-        object.set({ isEditable: newValue });
-      });
-
-      // Forca re-render pra borda aparecer/sumir
-      canvas.requestRenderAll();
-      save();
-    },
-    getActiveEditable: () => {
-      const selectedObject = selectedObjects[0];
-
-      if (!selectedObject) {
-        return false;
-      }
-
-      // @ts-ignore - propriedade custom
-      const value = selectedObject.get("isEditable") || false;
-
-      return value;
-    },
     selectedObjects,
   };
 };
@@ -665,15 +679,15 @@ export const useEditor = ({
 
   useWindowEvents();
 
-  const { 
-    save, 
-    canRedo, 
-    canUndo, 
-    undo, 
+  const {
+    save,
+    canRedo,
+    canUndo,
+    undo,
     redo,
     canvasHistory,
     setHistoryIndex,
-  } = useHistory({ 
+  } = useHistory({
     canvas,
     saveCallback
   });
@@ -736,7 +750,7 @@ export const useEditor = ({
     }
 
     return undefined;
-  }, 
+  },
   [
     canRedo,
     canUndo,
@@ -803,8 +817,8 @@ export const useEditor = ({
       setHistoryIndex(0);
     },
     [
-      canvasHistory, // No need, this is from useRef
-      setHistoryIndex, // No need, this is from useState
+      canvasHistory,
+      setHistoryIndex,
     ]
   );
 

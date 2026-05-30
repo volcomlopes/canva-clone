@@ -75,19 +75,51 @@ const app = new Hono()
         return c.json({ error: "Unauthorized" }, 401);
       }
 
-      const data = await db
-        .delete(projects)
-        .where(
-          and(
-            eq(projects.id, id),
-            eq(projects.userId, auth.token.id),
-          ),
-        )
-        .returning();
+      // Busca role e brandId
+      const [dbUser] = await db
+        .select({ brandId: users.brandId, role: users.role })
+        .from(users)
+        .where(eq(users.id, auth.token.id as string))
+        .limit(1);
 
-      if (data.length === 0) {
+      // Busca o projeto/template alvo
+      const [target] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, id))
+        .limit(1);
+
+      if (!target) {
         return c.json({ error: "Not found" }, 404);
       }
+
+      const isAdmin = dbUser?.role === "brand_admin" || dbUser?.role === "super_admin";
+      const isOwner = target.userId === auth.token.id;
+      const isSameBrand = target.brandId === dbUser?.brandId;
+
+      // REGRAS DE PERMISSAO:
+      // 1. Templates oficiais: so admin da MESMA marca pode deletar
+      // 2. Templates pessoais: so o criador pode deletar
+      // 3. Projetos normais: so o criador pode deletar
+      if (target.isTemplate) {
+        if (target.templateVisibility === "official") {
+          if (!isAdmin || !isSameBrand) {
+            return c.json({ error: "Sem permissao para deletar template oficial" }, 403);
+          }
+        } else {
+          // Template pessoal
+          if (!isOwner) {
+            return c.json({ error: "Sem permissao para deletar template pessoal de outro usuario" }, 403);
+          }
+        }
+      } else {
+        // Projeto normal
+        if (!isOwner) {
+          return c.json({ error: "Sem permissao" }, 403);
+        }
+      }
+
+      await db.delete(projects).where(eq(projects.id, id));
 
       return c.json({ data: { id } });
     },
@@ -310,13 +342,7 @@ const app = new Hono()
 
       const mode = body.mode === "update" ? "update" : "create";
 
-        console.log("[save-as-template] DEBUG:", {
-        projectId: id,
-        mode: mode,
-        bodyRaw: body,
-        targetTemplateId: body.targetTemplateId,
-      });
-
+        
       // Busca role e brandId
       const [dbUser] = await db
         .select({ brandId: users.brandId, role: users.role })
@@ -355,15 +381,7 @@ const app = new Hono()
         // 2. Senao usa templateChildId (projeto-pai atualiza template gerado)
         const targetId = body.targetTemplateId || project.templateChildId;
 
-         console.log("[save-as-template] UPDATE DEBUG:", {
-          targetId: targetId,
-          fromBody: body.targetTemplateId,
-          fromProject: project.templateChildId,
-          projectId: id,
-          sourceTemplateId: project.sourceTemplateId,
-        });
-
-        
+                 
         if (!targetId) {
           return c.json({ error: "Nenhum template vinculado" }, 400);
         }

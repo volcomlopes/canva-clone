@@ -8,8 +8,12 @@ import { usePaywall } from "@/features/subscriptions/hooks/use-paywall";
 
 import { ResponseType, useGetTemplates } from "@/features/projects/api/use-get-templates";
 import { useDuplicateFromTemplate } from "@/features/projects/api/use-duplicate-from-template";
+import { useDeleteProject } from "@/features/projects/api/use-delete-project";
+import { useRenameTemplate } from "@/features/projects/api/use-rename-template";
+import { useGetBrandSettings } from "@/features/brand-settings/api/use-get-brand-settings";
 
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/hooks/use-confirm";
 
 import { TemplateCard } from "./template-card";
 
@@ -20,6 +24,15 @@ export const TemplatesSection = () => {
   const { shouldBlock, triggerPaywall } = usePaywall();
   const router = useRouter();
   const duplicateFromTemplate = useDuplicateFromTemplate();
+  const removeMutation = useDeleteProject();
+  const renameMutation = useRenameTemplate();
+
+  const { data: brandSettings } = useGetBrandSettings();
+
+  const [ConfirmDialog, confirm] = useConfirm(
+    "Tem certeza?",
+    "Esse template sera permanentemente removido da galeria."
+  );
 
   const [limit, setLimit] = useState(INITIAL_LIMIT);
 
@@ -42,13 +55,48 @@ export const TemplatesSection = () => {
     });
   };
 
+  const onDelete = async (templateId: string) => {
+    const ok = await confirm();
+    if (!ok) return;
+
+    removeMutation.mutate({ id: templateId });
+  };
+
+  const onRename = (template: ResponseType["data"][0]) => {
+    const newName = window.prompt("Novo nome do template:", template.name);
+    if (!newName) return;
+
+    const trimmed = newName.trim();
+    if (trimmed.length === 0) return;
+    if (trimmed === template.name) return;
+
+    renameMutation.mutate({ id: template.id, name: trimmed });
+  };
+
   const handleLoadMore = () => {
     setLimit(function (current) {
       return current + LOAD_MORE_STEP;
     });
   };
 
-  // Quando data retorna menos que o limite, significa que nao tem mais templates
+  const canManageTemplate = (template: ResponseType["data"][0]): boolean => {
+    if (!brandSettings) return false;
+
+    const role = brandSettings.userRole;
+    const isAdmin = role === "brand_admin" || role === "super_admin";
+    // @ts-ignore
+    const visibility = template.templateVisibility;
+
+    if (isAdmin) return true;
+
+    // @ts-ignore - userId existe no endpoint
+    if (visibility === "personal" && template.userId === brandSettings.userId) {
+      return true;
+    }
+
+    return false;
+  };
+
   const hasMore = data && data.length === limit;
 
   if (isLoading) {
@@ -72,9 +120,7 @@ export const TemplatesSection = () => {
         </h3>
         <div className="flex flex-col gap-y-4 items-center justify-center h-32">
           <TriangleAlert className="size-6 text-muted-foreground" />
-          <p>
-            Erro ao carregar templates
-          </p>
+          <p>Erro ao carregar templates</p>
         </div>
       </div>
     );
@@ -86,6 +132,7 @@ export const TemplatesSection = () => {
 
   return (
     <div>
+      <ConfirmDialog />
       <h3 className="font-semibold text-lg">
         Comece com um template
       </h3>
@@ -96,11 +143,18 @@ export const TemplatesSection = () => {
             title={template.name}
             imageSrc={template.thumbnailUrl || ""}
             onClick={() => onClick(template)}
-            disabled={duplicateFromTemplate.isPending}
+            disabled={
+              duplicateFromTemplate.isPending ||
+              removeMutation.isPending ||
+              renameMutation.isPending
+            }
             description={`${template.width} x ${template.height} px`}
             width={template.width}
             height={template.height}
             isPro={template.isPro}
+            canManage={canManageTemplate(template)}
+            onDelete={() => onDelete(template.id)}
+            onRename={() => onRename(template)}
           />
         ))}
       </div>

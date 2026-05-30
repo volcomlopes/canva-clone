@@ -14,6 +14,7 @@ const app = new Hono().get("/", verifyAuth(), async (c) => {
 
   const [dbUser] = await db
     .select({
+      id: users.id,
       brandId: users.brandId,
       role: users.role,
     })
@@ -41,6 +42,7 @@ const app = new Hono().get("/", verifyAuth(), async (c) => {
     data: {
       showTemplateControls: brand.showTemplateControls,
       userRole: dbUser.role,
+      userId: dbUser.id,
     },
   });
 });

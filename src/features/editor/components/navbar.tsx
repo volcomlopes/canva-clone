@@ -24,6 +24,7 @@ import { Logo } from "@/features/editor/components/logo";
 
 import { useSaveAsTemplate } from "@/features/projects/api/use-save-as-template";
 import { useGetProject } from "@/features/projects/api/use-get-project";
+import { useGetBrandSettings } from "@/features/brand-settings/api/use-get-brand-settings";
 
 import { cn } from "@/lib/utils";
 import { Hint } from "@/components/hint";
@@ -65,6 +66,56 @@ export const Navbar = ({
   const [templateName, setTemplateName] = useState("");
 
   const { data: project } = useGetProject(id);
+  const { data: brandSettings } = useGetBrandSettings();
+
+  // Acessa campos via cast (campos novos no schema)
+  const projectAny = project as any;
+  const childTemplateId: string | null = projectAny?.templateChildId || null;
+  const sourceTemplateId: string | null = projectAny?.sourceTemplateId || null;
+
+  // Busca dados do template de origem (se existe) pra checar permissao
+  const { data: sourceTemplate } = useGetProject(sourceTemplateId || "");
+  const sourceTemplateAny = sourceTemplate as any;
+  const sourceVisibility: string | null = sourceTemplateAny?.templateVisibility || null;
+  const sourceOwnerId: string | null = sourceTemplateAny?.userId || null;
+
+  // Role e userId do usuario atual
+  const userRole = brandSettings?.userRole;
+  // @ts-ignore - userId existe no endpoint
+  const currentUserId = brandSettings?.userId;
+  const isAdmin = userRole === "brand_admin" || userRole === "super_admin";
+
+  // REGRA: pode atualizar o template vinculado?
+  // - Se o template e oficial: so admin
+  // - Se o template e pessoal: so o dono
+  // - childTemplateId (template que esse projeto GEROU): sempre pode (e dele)
+  // - sourceTemplateId (template que originou esse projeto): valida visibility/owner
+  const canUpdateLinkedTemplate = (() => {
+    // Se gerou template a partir desse projeto, sempre pode atualizar
+    if (childTemplateId) return true;
+
+    // Se nao tem source, nao tem o que atualizar
+    if (!sourceTemplateId) return false;
+
+    // Se ainda nao carregou os dados do source, esconde a opcao por seguranca
+    if (!sourceVisibility) return false;
+
+    // Source eh oficial: so admin atualiza
+    if (sourceVisibility === "official") {
+      return isAdmin;
+    }
+
+    // Source eh pessoal: so o dono atualiza
+    if (sourceVisibility === "personal") {
+      return sourceOwnerId === currentUserId;
+    }
+
+    return false;
+  })();
+
+  // ID do template a ser atualizado (prioriza childTemplateId)
+  const linkedTemplateId = childTemplateId || sourceTemplateId;
+  const hasLinkedTemplate = !!linkedTemplateId;
 
   const data = useMutationState({
     filters: {
@@ -94,24 +145,23 @@ export const Navbar = ({
     },
   });
 
-  // @ts-ignore - campos novos no schema
-  const childTemplateId = project?.templateChildId as string | null | undefined;
-  // @ts-ignore
-  const sourceTemplateId = project?.sourceTemplateId as string | null | undefined;
-
-  // Define qual template e o "vinculado" pra atualizar:
-  // 1. Se este projeto JA gerou template (templateChildId) - usa esse
-  // 2. Se este projeto VEIO de template (sourceTemplateId) - usa esse
-  const linkedTemplateId = childTemplateId || sourceTemplateId;
-  const hasLinkedTemplate = !!linkedTemplateId;
-
   const openTemplateModal = () => {
-    if (hasLinkedTemplate) {
-      setModalView("choice");
-    } else {
+    // Se NAO pode atualizar o vinculado, vai direto pro modal de nome
+    if (!canUpdateLinkedTemplate) {
       setModalView("name");
-      setTemplateName("");
+      // Se ja tem vinculo (mas nao pode atualizar), sugere nome com " 2"
+      if (hasLinkedTemplate) {
+        const baseName = project?.name || "Sem nome";
+        setTemplateName(`${baseName} 2`);
+      } else {
+        setTemplateName("");
+      }
+      setModalOpen(true);
+      return;
     }
+
+    // Pode atualizar: mostra modal de escolha
+    setModalView("choice");
     setModalOpen(true);
   };
 
@@ -234,7 +284,7 @@ export const Navbar = ({
             <>
               <DialogHeader>
                 <DialogTitle>
-                  {hasLinkedTemplate ? "Criar como novo template" : "Salvar como template"}
+                  {hasLinkedTemplate ? "Salvar como novo template" : "Salvar como template"}
                 </DialogTitle>
                 <DialogDescription>
                   Esse template ficara disponivel na galeria.
@@ -264,7 +314,7 @@ export const Navbar = ({
               </div>
 
               <DialogFooter>
-                {hasLinkedTemplate && (
+                {canUpdateLinkedTemplate && (
                   <Button
                     variant="ghost"
                     onClick={() => setModalView("choice")}
@@ -394,7 +444,7 @@ export const Navbar = ({
           )}
           <div className="ml-auto flex items-center gap-x-4">
             <Hint
-              label={hasLinkedTemplate ? "Atualizar/Criar Template" : "Salvar como Template"}
+              label={canUpdateLinkedTemplate ? "Atualizar/Criar Template" : "Salvar como Template"}
               side="bottom"
               sideOffset={10}
             >
@@ -406,12 +456,12 @@ export const Navbar = ({
               >
                 {saveAsTemplate.isPending ? (
                   <Loader className="size-4 mr-2 animate-spin" />
-                ) : hasLinkedTemplate ? (
+                ) : canUpdateLinkedTemplate ? (
                   <RefreshCw className="size-4 mr-2" />
                 ) : (
                   <BookmarkPlus className="size-4 mr-2" />
                 )}
-                {hasLinkedTemplate ? "Atualizar Template" : "Salvar Template"}
+                {canUpdateLinkedTemplate ? "Atualizar Template" : "Salvar Template"}
               </Button>
             </Hint>
             <DropdownMenu modal={false}>
