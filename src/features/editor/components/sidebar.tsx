@@ -9,6 +9,7 @@ import {
   Sparkles,
   Type,
   Building2,
+  Layers,
 } from "lucide-react";
 
 import { ActiveTool } from "@/features/editor/types";
@@ -61,6 +62,12 @@ export const Sidebar = ({
           label="Draw"
           isActive={activeTool === "draw"}
           onClick={() => onChangeActiveTool("draw")}
+        />
+        <SidebarItem
+          icon={Layers}
+          label="Camadas"
+          isActive={activeTool === "layers"}
+          onClick={() => onChangeActiveTool("layers")}
         />
         <SidebarItem
           icon={Sparkles}
