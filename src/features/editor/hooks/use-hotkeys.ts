@@ -18,6 +18,12 @@ export const useHotkeys = ({ canvas, undo, redo, save, copy, paste }: UseHotkeys
 
     if (isInput) return;
 
+    // Pula atalhos se o usuario esta editando texto inline no canvas (duplo clique)
+    const activeObject = canvas?.getActiveObject();
+    // @ts-ignore - isEditing existe em Textbox/IText quando esta em modo edicao
+    const isEditingText = activeObject && activeObject.isEditing === true;
+    if (isEditingText) return;
+
     // delete key
     if (event.keyCode === 46) {
       canvas?.getActiveObjects().forEach((Object) => canvas?.remove(Object));
@@ -63,6 +69,51 @@ export const useHotkeys = ({ canvas, undo, redo, save, copy, paste }: UseHotkeys
 
       canvas?.setActiveObject(new fabric.ActiveSelection(allObjects, { canvas }));
       canvas?.renderAll();
+    }
+
+    // Ctrl+D - Duplicar elemento selecionado
+    if (isCtrlKey && event.key === "d") {
+      event.preventDefault(); // impede o navegador de adicionar aos favoritos
+      if (canvas?.getActiveObject()) {
+        copy();
+        paste();
+      }
+    }
+
+    // Setas do teclado - mover elemento selecionado
+    const isArrow =
+      event.key === "ArrowUp" ||
+      event.key === "ArrowDown" ||
+      event.key === "ArrowLeft" ||
+      event.key === "ArrowRight";
+
+    if (isArrow && !isCtrlKey) {
+      const active = canvas?.getActiveObject();
+      if (!active) return;
+
+      event.preventDefault();
+
+      // Shift = passo maior (10px), normal = 1px
+      const step = event.shiftKey ? 10 : 1;
+
+      if (event.key === "ArrowUp") {
+        active.set("top", (active.top || 0) - step);
+      }
+      if (event.key === "ArrowDown") {
+        active.set("top", (active.top || 0) + step);
+      }
+      if (event.key === "ArrowLeft") {
+        active.set("left", (active.left || 0) - step);
+      }
+      if (event.key === "ArrowRight") {
+        active.set("left", (active.left || 0) + step);
+      }
+
+      active.setCoords();
+      canvas?.requestRenderAll();
+
+      // Dispara save (debounced) - reusa o evento que ja tem listener
+      canvas?.fire("object:modified");
     }
   });
 };

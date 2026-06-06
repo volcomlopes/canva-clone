@@ -95,6 +95,7 @@ export const colors = [
 
 export type ActiveTool =
   | "select"
+  | "shadow"
   | "shapes"
   | "text"
   | "images"
@@ -242,11 +243,19 @@ export interface Editor {
   getActiveFontWeight: () => number;
   getActiveFontFamily: () => string;
   changeFontFamily: (value: string) => void;
+  changeShadow: (shadow: ShadowOptions | null) => void;
+  getActiveShadow: () => ShadowOptions | null;
   addText: (value: string, options?: ITextboxOptions) => void;
   getActiveOpacity: () => number;
   changeOpacity: (value: number) => void;
   bringForward: () => void;
   sendBackwards: () => void;
+  alignLeft: () => void;
+  alignCenterX: () => void;
+  alignRight: () => void;
+  alignTop: () => void;
+  alignCenterY: () => void;
+  alignBottom: () => void;
   changeStrokeWidth: (value: number) => void;
   changeFillColor: (value: string) => void;
   changeStrokeColor: (value: string) => void;
@@ -265,4 +274,21 @@ export interface Editor {
   toggleEditable: () => void;
   getActiveEditable: () => boolean;
   selectedObjects: fabric.Object[];
+
+  
+};
+
+export interface ShadowOptions {
+  color: string;
+  blur: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+export const SHADOW_PRESETS: Record<string, ShadowOptions | null> = {
+  none: null,
+  soft: { color: "rgba(0,0,0,0.2)", blur: 10, offsetX: 0, offsetY: 4 },
+  medium: { color: "rgba(0,0,0,0.4)", blur: 15, offsetX: 0, offsetY: 8 },
+  strong: { color: "rgba(0,0,0,0.6)", blur: 25, offsetX: 0, offsetY: 12 },
+  glow: { color: "rgba(99,102,241,0.7)", blur: 30, offsetX: 0, offsetY: 0 },
 };

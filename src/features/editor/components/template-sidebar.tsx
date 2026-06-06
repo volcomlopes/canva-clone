@@ -154,10 +154,7 @@ export const TemplateSidebar = ({
               return (
                 <div
                   key={template.id}
-                  style={{
-                    aspectRatio: `${template.width}/${template.height}`,
-                  }}
-                  className="relative w-full group bg-muted rounded-sm overflow-hidden border"
+                  className="relative w-full group bg-slate-100 rounded-sm overflow-hidden border aspect-[3/4]"
                 >
                   <button
                     type="button"
@@ -167,14 +164,20 @@ export const TemplateSidebar = ({
                       removeMutation.isPending ||
                       renameMutation.isPending
                     }
-                    className="absolute inset-0 w-full h-full hover:opacity-75 transition disabled:opacity-50"
+                    className="absolute inset-0 w-full h-full flex items-center justify-center hover:opacity-75 transition disabled:opacity-50"
                   >
-                    <Image
-                      fill
-                      src={template.thumbnailUrl || ""}
-                      alt={template.name || "Template"}
-                      className="object-cover"
-                    />
+                    {template.thumbnailUrl ? (
+                      <Image
+                        fill
+                        src={template.thumbnailUrl}
+                        alt={template.name || "Template"}
+                        className="object-contain"
+                      />
+                    ) : (
+                      <div className="text-slate-400 text-[10px]">
+                        Sem preview
+                      </div>
+                    )}
                     {template.isPro && (
                       <div className="absolute top-2 right-2 size-8 items-center flex justify-center bg-black/50 rounded-full pointer-events-none">
                         <Crown className="size-4 fill-yellow-500 text-yellow-500" />

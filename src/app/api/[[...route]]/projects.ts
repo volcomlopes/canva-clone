@@ -227,23 +227,56 @@ const app = new Hono()
         return c.json({ error: "Unauthorized" }, 401);
       }
 
+      // Busca role e brandId
+      const [dbUser] = await db
+        .select({ brandId: users.brandId, role: users.role })
+        .from(users)
+        .where(eq(users.id, auth.token.id as string))
+        .limit(1);
+
+      // Busca o projeto/template alvo
+      const [target] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, id))
+        .limit(1);
+
+      if (!target) {
+        return c.json({ error: "Not found" }, 404);
+      }
+
+      const isAdmin = dbUser?.role === "brand_admin" || dbUser?.role === "super_admin";
+      const isOwner = target.userId === auth.token.id;
+      const isSameBrand = target.brandId === dbUser?.brandId;
+
+      // REGRAS DE PERMISSAO:
+      // 1. Template oficial: so admin da MESMA marca
+      // 2. Template pessoal: so o criador
+      // 3. Projeto normal: so o criador
+      if (target.isTemplate) {
+        if (target.templateVisibility === "official") {
+          if (!isAdmin || !isSameBrand) {
+            return c.json({ error: "Sem permissao" }, 403);
+          }
+        } else {
+          if (!isOwner) {
+            return c.json({ error: "Sem permissao" }, 403);
+          }
+        }
+      } else {
+        if (!isOwner) {
+          return c.json({ error: "Sem permissao" }, 403);
+        }
+      }
+
       const data = await db
         .update(projects)
         .set({
           ...values,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(projects.id, id),
-            eq(projects.userId, auth.token.id),
-          ),
-        )
+        .where(eq(projects.id, id))
         .returning();
-
-      if (data.length === 0) {
-        return c.json({ error: "Unauthorized" }, 401);
-      }
 
       return c.json({ data: data[0] });
     },
@@ -329,10 +362,30 @@ const app = new Hono()
         return c.json({ error: "Unauthorized" }, 401);
       }
 
+      // Garante que todos os elementos tenham isEditable definido (default: false = travado)
+      const ensureEditableDefaults = function (jsonString: string): string {
+        try {
+          const parsed = JSON.parse(jsonString);
+          if (parsed && Array.isArray(parsed.objects)) {
+            parsed.objects.forEach(function (obj: any) {
+              if (obj && obj.name !== "clip" && typeof obj.isEditable !== "boolean") {
+                obj.isEditable = false;
+              }
+            });
+            return JSON.stringify(parsed);
+          }
+          return jsonString;
+        } catch {
+          // Se falhar parse, retorna como veio (nao bloqueia o save)
+          return jsonString;
+        }
+      };
+
       let body: {
         name?: string;
         mode?: "create" | "update";
         targetTemplateId?: string;
+        thumbnailUrl?: string;
       };
       try {
         body = await c.req.json();
@@ -420,10 +473,10 @@ const app = new Hono()
         const [updated] = await db
           .update(projects)
           .set({
-            json: project.json,
+            json: ensureEditableDefaults(project.json),
             width: project.width,
             height: project.height,
-            thumbnailUrl: project.thumbnailUrl,
+            thumbnailUrl: body.thumbnailUrl || project.thumbnailUrl,
             updatedAt: new Date(),
           })
           .where(eq(projects.id, targetId))
@@ -448,10 +501,10 @@ const app = new Hono()
         .insert(projects)
         .values({
           name: name,
-          json: project.json,
+          json: ensureEditableDefaults(project.json),
           width: project.width,
           height: project.height,
-          thumbnailUrl: project.thumbnailUrl,
+          thumbnailUrl: body.thumbnailUrl || project.thumbnailUrl,
           userId: auth.token.id,
           brandId: dbUser.brandId,
           isTemplate: true,

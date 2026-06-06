@@ -4,15 +4,19 @@ import { fabric } from "fabric";
 import { useGetBrandSettings } from "@/features/brand-settings/api/use-get-brand-settings";
 
 /**
- * Modo Vendedor: aplica travas em elementos NAO editaveis quando o usuario
- * e role "user" ou "dealership_admin" e o canvas tem elementos com isEditable
- * definido (ou seja, foi carregado de um template).
+ * Modo Vendedor: aplica travas quando:
+ * 1. Usuario e role "user" ou "dealership_admin"
+ * 2. shouldRestrict = true (decidido pelo componente pai)
  *
- * Elementos travados: nao podem ser selecionados/movidos/redimensionados.
- * Elementos editaveis: vendedor pode editar conteudo, mover, redimensionar e girar.
- *                      Mas nao pode mudar cor/fonte/tamanho (controlado pela toolbar).
+ * Quem decide shouldRestrict e o editor.tsx, baseado em:
+ * - Projeto NORMAL (sem sourceTemplateId): shouldRestrict = false
+ * - Projeto vindo de template OFICIAL: shouldRestrict = true
+ * - Projeto vindo de template PESSOAL DELE: shouldRestrict = false
  */
-export const useSellerMode = (canvas: fabric.Canvas | null) => {
+export const useSellerMode = (
+  canvas: fabric.Canvas | null,
+  shouldRestrict: boolean
+) => {
   const { data: brandSettings } = useGetBrandSettings();
 
   useEffect(() => {
@@ -27,29 +31,35 @@ export const useSellerMode = (canvas: fabric.Canvas | null) => {
     const applyLocks = function () {
       const objects = canvas.getObjects();
 
-      // Detecta se o canvas tem elementos com isEditable definido
-      // (significa que foi carregado de um template)
-      const hasTemplateElements = objects.some(function (obj) {
-        // @ts-ignore - propriedade custom
-        return obj.get && typeof obj.get("isEditable") === "boolean";
-      });
+      if (!shouldRestrict) {
+        // Modo livre: vendedor mexe em tudo
+        objects.forEach(function (obj) {
+          if (obj.name === "clip") return;
+          obj.set({
+            selectable: true,
+            evented: true,
+            lockMovementX: false,
+            lockMovementY: false,
+            lockScalingX: false,
+            lockScalingY: false,
+            lockRotation: false,
+            hasControls: true,
+            hoverCursor: "move",
+          });
+        });
+        canvas.requestRenderAll();
+        return;
+      }
 
-      if (!hasTemplateElements) return; // canvas vazio ou projeto normal
-
+      // Modo restrito: aplica travas baseado em isEditable de cada elemento
       objects.forEach(function (obj) {
-        // Pula o workspace (fundo branco)
         if (obj.name === "clip") return;
 
         // @ts-ignore - propriedade custom
         const isEditable = obj.get && obj.get("isEditable");
 
+        // DEFAULT = TRAVADO. So libera se isEditable === true
         if (isEditable === true) {
-          // Elemento EDITAVEL: vendedor pode mover, escalar e girar livremente
-          // - Pode mover (X e Y)
-          // - Pode redimensionar (largura/altura)
-          // - Pode rotacionar
-          // - Pode editar conteudo (duplo clique no texto)
-          // - Cor/fonte/tamanho de fonte sao bloqueados na toolbar
           obj.set({
             lockMovementX: false,
             lockMovementY: false,
@@ -62,7 +72,6 @@ export const useSellerMode = (canvas: fabric.Canvas | null) => {
             evented: true,
           });
         } else {
-          // Elemento TRAVADO: vendedor nao pode interagir
           obj.set({
             selectable: false,
             evented: false,
@@ -74,19 +83,15 @@ export const useSellerMode = (canvas: fabric.Canvas | null) => {
       canvas.requestRenderAll();
     };
 
-    // Aplica travas quando objetos sao adicionados
     const handleObjectAdded = function () {
       applyLocks();
     };
 
-    // Aplica travas quando JSON e carregado (template selecionado)
     canvas.on("object:added", handleObjectAdded);
-
-    // Aplica logo de cara (caso ja tenha objetos carregados)
     applyLocks();
 
     return function () {
       canvas.off("object:added", handleObjectAdded);
     };
-  }, [canvas, brandSettings]);
+  }, [canvas, brandSettings, shouldRestrict]);
 };

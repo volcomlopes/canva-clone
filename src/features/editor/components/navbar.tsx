@@ -166,10 +166,13 @@ export const Navbar = ({
   };
 
   const handleUpdateExisting = () => {
+    const thumbnailDataUrl = editor?.generateThumbnail();
+
     saveAsTemplate.mutate(
       {
         mode: "update",
         targetTemplateId: linkedTemplateId || undefined,
+        thumbnailDataUrl: thumbnailDataUrl,
       },
       {
         onSuccess: () => {
@@ -189,8 +192,10 @@ export const Navbar = ({
     const trimmed = templateName.trim();
     if (!trimmed) return;
 
+    const thumbnailDataUrl = editor?.generateThumbnail();
+
     saveAsTemplate.mutate(
-      { mode: "create", name: trimmed },
+      { mode: "create", name: trimmed, thumbnailDataUrl: thumbnailDataUrl },
       {
         onSuccess: () => {
           setModalOpen(false);

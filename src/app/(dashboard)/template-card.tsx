@@ -61,25 +61,30 @@ export const TemplateCard = ({
         disabled ? "cursor-not-allowed opacity-75" : ""
       )}
     >
-      <div
-        style={{ aspectRatio: `${width}/${height}` }}
-        className="relative rounded-xl h-full w-full overflow-hidden border"
-      >
+      {/* Container com proporcao fixa 4:3 */}
+      <div className="relative rounded-xl w-full overflow-hidden border bg-slate-100 aspect-[3/4]">
         <button
           type="button"
           onClick={onClick}
           disabled={disabled}
           className={cn(
-            "absolute inset-0 w-full h-full",
+            "absolute inset-0 w-full h-full flex items-center justify-center",
             disabled ? "cursor-not-allowed" : "cursor-pointer"
           )}
         >
-          <Image
-            fill
-            src={imageSrc}
-            alt={title}
-            className="object-cover transition transform group-hover:scale-105"
-          />
+          {/* Imagem com object-contain - encaixa SEM cortar */}
+          {imageSrc ? (
+            <Image
+              fill
+              src={imageSrc}
+              alt={title}
+              className="object-contain transition transform group-hover:scale-105"
+            />
+          ) : (
+            <div className="flex items-center justify-center w-full h-full text-slate-400 text-xs">
+              Sem preview
+            </div>
+          )}
           <div className="opacity-0 group-hover:opacity-100 transition absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl backdrop-filter backdrop-blur-sm">
             <p className="text-white font-medium">
               Abrir no editor
@@ -127,7 +132,7 @@ export const TemplateCard = ({
       </div>
 
       <div className="space-y-1">
-        <p className="text-sm font-medium">
+        <p className="text-sm font-medium truncate">
           {title}
         </p>
         <p className="text-xs text-muted-foreground opacity-0 group-hover:opacity-75 transition">

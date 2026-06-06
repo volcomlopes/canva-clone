@@ -1,4 +1,8 @@
 "use client";
+import { useGetProject } from "@/features/projects/api/use-get-project";
+import { useGetBrandSettings } from "@/features/brand-settings/api/use-get-brand-settings";
+import { ShadowSidebar } from "@/features/editor/components/shadow-sidebar";
+import { useSnapGuides } from "@/features/editor/hooks/use-snap-guides";
 
 import { fabric } from "fabric";
 import debounce from "lodash.debounce";
@@ -79,8 +83,38 @@ export const Editor = ({ initialData }: EditorProps) => {
   useEditableBorders(editor?.canvas || null);
 
   // Modo Vendedor: aplica travas em elementos do template (so user/dealership_admin)
-  useSellerMode(editor?.canvas || null);
+  // Logica:
+  // - Projeto normal (sem sourceTemplateId): vendedor mexe livre
+  // - Projeto de template oficial: aplica travas
+  // - Projeto de template pessoal DELE: vendedor mexe livre
+  const sourceTemplateId = (initialData as any).sourceTemplateId as string | null;
+  const { data: sourceTemplate } = useGetProject(sourceTemplateId || "");
+  const { data: brandSettingsForRestrict } = useGetBrandSettings();
 
+  const sourceTemplateAny = sourceTemplate as any;
+  const sourceVisibility = sourceTemplateAny?.templateVisibility;
+  const sourceOwnerId = sourceTemplateAny?.userId;
+  const currentUserId = (brandSettingsForRestrict as any)?.userId;
+
+  // Calcula se deve restringir
+  let shouldRestrict = false;
+  if (sourceTemplateId) {
+    if (sourceVisibility === "official") {
+      // Template oficial sempre restringe (mesmo se o admin que abriu seria dono)
+      shouldRestrict = true;
+    } else if (sourceVisibility === "personal") {
+      // Template pessoal: so restringe se NAO for o dono
+      shouldRestrict = sourceOwnerId !== currentUserId;
+    } else if (!sourceVisibility) {
+      // Ainda nao carregou: por seguranca, restringe ate carregar
+      shouldRestrict = true;
+    }
+  }
+
+  useSellerMode(editor?.canvas || null, shouldRestrict);
+
+  // Linhas-guia + snap entre elementos (todos os usuarios)
+  useSnapGuides(editor?.canvas || null);
   // Hover de borda azul nos editaveis (so vendedor)
   useEditableHover(editor?.canvas || null);
 
@@ -153,6 +187,11 @@ export const Editor = ({ initialData }: EditorProps) => {
           onChangeActiveTool={onChangeActiveTool}
         />
         <OpacitySidebar
+          editor={editor}
+          activeTool={activeTool}
+          onChangeActiveTool={onChangeActiveTool}
+        />
+        <ShadowSidebar
           editor={editor}
           activeTool={activeTool}
           onChangeActiveTool={onChangeActiveTool}

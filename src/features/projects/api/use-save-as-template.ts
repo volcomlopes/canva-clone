@@ -1,18 +1,54 @@
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { genUploader } from "uploadthing/client";
+
+import type { OurFileRouter } from "@/app/api/uploadthing/core";
+
+const { uploadFiles } = genUploader<OurFileRouter>();
 
 interface SaveTemplateArgs {
   mode: "create" | "update";
   name?: string;
   targetTemplateId?: string;
+  thumbnailDataUrl?: string;
 }
+
+// Converte dataURL em File pra upload
+const dataUrlToFile = async function (dataUrl: string, filename: string): Promise<File> {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  return new File([blob], filename, { type: blob.type });
+};
 
 export const useSaveAsTemplate = (projectId: string) => {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: async function (args: SaveTemplateArgs) {
-      // Usa fetch direto pra evitar filtragem do cliente Hono
+      let thumbnailUrl: string | undefined;
+
+      // 1. Se veio dataURL do thumbnail, faz upload primeiro
+      if (args.thumbnailDataUrl) {
+        try {
+          const file = await dataUrlToFile(
+            args.thumbnailDataUrl,
+            `template-${Date.now()}.png`
+          );
+
+          const uploadResult = await uploadFiles("templateThumbnailUploader", {
+            files: [file],
+          });
+
+          if (uploadResult && uploadResult[0]) {
+            thumbnailUrl = uploadResult[0].url;
+          }
+        } catch (error) {
+          // Se upload falhar, segue sem thumbnail (nao bloqueia o save)
+          console.warn("Falha no upload do thumbnail:", error);
+        }
+      }
+
+      // 2. Faz o save-as-template com a URL do thumbnail (se conseguiu)
       const response = await fetch(
         `/api/projects/${projectId}/save-as-template`,
         {
@@ -24,6 +60,7 @@ export const useSaveAsTemplate = (projectId: string) => {
             mode: args.mode,
             name: args.name,
             targetTemplateId: args.targetTemplateId,
+            thumbnailUrl: thumbnailUrl,
           }),
         }
       );

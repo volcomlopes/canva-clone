@@ -13,6 +13,7 @@ import {
   RECTANGLE_OPTIONS,
   EditorHookProps,
   STROKE_DASH_ARRAY,
+  ShadowOptions,
   TEXT_OPTIONS,
   FONT_FAMILY,
   FONT_WEIGHT,
@@ -77,6 +78,33 @@ const buildEditor = ({
 
     downloadFile(dataUrl, "png");
     autoZoom();
+  };
+  
+  const generateThumbnail = () => {
+    const options = generateSaveOptions();
+
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+
+    // Limita o thumbnail a 800px na maior dimensao pra evitar
+    // arquivos grandes que estouram o limite de upload (2MB)
+    const MAX_THUMB_DIMENSION = 800;
+    const workspace = getWorkspace() as fabric.Rect;
+    const wsWidth = workspace.width || 1080;
+    const wsHeight = workspace.height || 1080;
+    const largerSide = Math.max(wsWidth, wsHeight);
+
+    let multiplier = 1;
+    if (largerSide > MAX_THUMB_DIMENSION) {
+      multiplier = MAX_THUMB_DIMENSION / largerSide;
+    }
+
+    const dataUrl = canvas.toDataURL({
+      ...options,
+      multiplier: multiplier,
+    });
+
+    autoZoom();
+    return dataUrl;
   };
 
   const saveSvg = () => {
@@ -145,6 +173,7 @@ const buildEditor = ({
     saveSvg,
     saveJson,
     loadJson,
+    generateThumbnail,
     canUndo,
     canRedo,
     autoZoom,
@@ -381,6 +410,40 @@ const buildEditor = ({
       canvas.renderAll();
       save();
     },
+
+    changeShadow: (shadow: ShadowOptions | null) => {
+      canvas.getActiveObjects().forEach((object) => {
+        if (shadow === null) {
+          object.set({ shadow: null as any });
+        } else {
+          const fabricShadow = new fabric.Shadow({
+            color: shadow.color,
+            blur: shadow.blur,
+            offsetX: shadow.offsetX,
+            offsetY: shadow.offsetY,
+          });
+          object.set({ shadow: fabricShadow });
+        }
+      });
+      canvas.requestRenderAll();
+      save();
+    },
+
+    getActiveShadow: (): ShadowOptions | null => {
+      const selectedObject = selectedObjects[0];
+      if (!selectedObject) return null;
+
+      const shadow = selectedObject.get("shadow") as fabric.Shadow | null;
+      if (!shadow) return null;
+
+      return {
+        color: shadow.color || "rgba(0,0,0,0.3)",
+        blur: shadow.blur || 0,
+        offsetX: shadow.offsetX || 0,
+        offsetY: shadow.offsetY || 0,
+      };
+    },
+
     changeOpacity: (value: number) => {
       canvas.getActiveObjects().forEach((object) => {
         object.set({ opacity: value });
@@ -388,6 +451,201 @@ const buildEditor = ({
       canvas.renderAll();
       save();
     },
+
+    alignLeft: () => {
+      const objects = canvas.getActiveObjects();
+      if (objects.length === 0) return;
+
+      const workspace = getWorkspace();
+      if (!workspace) return;
+
+      if (objects.length === 1) {
+        const obj = objects[0];
+        obj.set({ left: workspace.left });
+        obj.setCoords();
+      } else {
+        const activeSel = canvas.getActiveObject();
+        if (!activeSel) return;
+        const bound = activeSel.getBoundingRect(true, true);
+        const targetLeft = bound.left;
+
+        canvas.discardActiveObject();
+
+        objects.forEach((obj) => {
+          obj.set({ left: targetLeft });
+          obj.setCoords();
+        });
+
+        const sel = new fabric.ActiveSelection(objects, { canvas: canvas });
+        canvas.setActiveObject(sel);
+      }
+      canvas.requestRenderAll();
+      save();
+    },
+
+    alignCenterX: () => {
+      const objects = canvas.getActiveObjects();
+      if (objects.length === 0) return;
+
+      const workspace = getWorkspace();
+      if (!workspace) return;
+
+      if (objects.length === 1) {
+        const obj = objects[0];
+        const objWidth = (obj.width || 0) * (obj.scaleX || 1);
+        obj.set({ left: (workspace.left || 0) + ((workspace.width || 0) - objWidth) / 2 });
+        obj.setCoords();
+      } else {
+        const activeSel = canvas.getActiveObject();
+        if (!activeSel) return;
+        const bound = activeSel.getBoundingRect(true, true);
+        const centerX = bound.left + bound.width / 2;
+
+        canvas.discardActiveObject();
+
+        objects.forEach((obj) => {
+          const objWidth = (obj.width || 0) * (obj.scaleX || 1);
+          obj.set({ left: centerX - objWidth / 2 });
+          obj.setCoords();
+        });
+
+        const sel = new fabric.ActiveSelection(objects, { canvas: canvas });
+        canvas.setActiveObject(sel);
+      }
+      canvas.requestRenderAll();
+      save();
+    },
+
+    alignRight: () => {
+      const objects = canvas.getActiveObjects();
+      if (objects.length === 0) return;
+
+      const workspace = getWorkspace();
+      if (!workspace) return;
+
+      if (objects.length === 1) {
+        const obj = objects[0];
+        const objWidth = (obj.width || 0) * (obj.scaleX || 1);
+        obj.set({ left: (workspace.left || 0) + (workspace.width || 0) - objWidth });
+        obj.setCoords();
+      } else {
+        const activeSel = canvas.getActiveObject();
+        if (!activeSel) return;
+        const bound = activeSel.getBoundingRect(true, true);
+        const targetRight = bound.left + bound.width;
+
+        canvas.discardActiveObject();
+
+        objects.forEach((obj) => {
+          const objWidth = (obj.width || 0) * (obj.scaleX || 1);
+          obj.set({ left: targetRight - objWidth });
+          obj.setCoords();
+        });
+
+        const sel = new fabric.ActiveSelection(objects, { canvas: canvas });
+        canvas.setActiveObject(sel);
+      }
+      canvas.requestRenderAll();
+      save();
+    },
+
+    alignTop: () => {
+      const objects = canvas.getActiveObjects();
+      if (objects.length === 0) return;
+
+      const workspace = getWorkspace();
+      if (!workspace) return;
+
+      if (objects.length === 1) {
+        const obj = objects[0];
+        obj.set({ top: workspace.top });
+        obj.setCoords();
+      } else {
+        const activeSel = canvas.getActiveObject();
+        if (!activeSel) return;
+        const bound = activeSel.getBoundingRect(true, true);
+        const targetTop = bound.top;
+
+        canvas.discardActiveObject();
+
+        objects.forEach((obj) => {
+          obj.set({ top: targetTop });
+          obj.setCoords();
+        });
+
+        const sel = new fabric.ActiveSelection(objects, { canvas: canvas });
+        canvas.setActiveObject(sel);
+      }
+      canvas.requestRenderAll();
+      save();
+    },
+
+    alignCenterY: () => {
+      const objects = canvas.getActiveObjects();
+      if (objects.length === 0) return;
+
+      const workspace = getWorkspace();
+      if (!workspace) return;
+
+      if (objects.length === 1) {
+        const obj = objects[0];
+        const objHeight = (obj.height || 0) * (obj.scaleY || 1);
+        obj.set({ top: (workspace.top || 0) + ((workspace.height || 0) - objHeight) / 2 });
+        obj.setCoords();
+      } else {
+        const activeSel = canvas.getActiveObject();
+        if (!activeSel) return;
+        const bound = activeSel.getBoundingRect(true, true);
+        const centerY = bound.top + bound.height / 2;
+
+        canvas.discardActiveObject();
+
+        objects.forEach((obj) => {
+          const objHeight = (obj.height || 0) * (obj.scaleY || 1);
+          obj.set({ top: centerY - objHeight / 2 });
+          obj.setCoords();
+        });
+
+        const sel = new fabric.ActiveSelection(objects, { canvas: canvas });
+        canvas.setActiveObject(sel);
+      }
+      canvas.requestRenderAll();
+      save();
+    },
+
+    alignBottom: () => {
+      const objects = canvas.getActiveObjects();
+      if (objects.length === 0) return;
+
+      const workspace = getWorkspace();
+      if (!workspace) return;
+
+      if (objects.length === 1) {
+        const obj = objects[0];
+        const objHeight = (obj.height || 0) * (obj.scaleY || 1);
+        obj.set({ top: (workspace.top || 0) + (workspace.height || 0) - objHeight });
+        obj.setCoords();
+      } else {
+        const activeSel = canvas.getActiveObject();
+        if (!activeSel) return;
+        const bound = activeSel.getBoundingRect(true, true);
+        const targetBottom = bound.top + bound.height;
+
+        canvas.discardActiveObject();
+
+        objects.forEach((obj) => {
+          const objHeight = (obj.height || 0) * (obj.scaleY || 1);
+          obj.set({ top: targetBottom - objHeight });
+          obj.setCoords();
+        });
+
+        const sel = new fabric.ActiveSelection(objects, { canvas: canvas });
+        canvas.setActiveObject(sel);
+      }
+      canvas.requestRenderAll();
+      save();
+    },
+
     bringForward: () => {
       canvas.getActiveObjects().forEach((object) => {
         canvas.bringForward(object);

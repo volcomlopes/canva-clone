@@ -88,6 +88,37 @@ export const ourFileRouter = {
         brandId: metadata.brandId,
       };
     }),
+
+  // Rota: thumbnail de templates (gerado automaticamente ao salvar template)
+  templateThumbnailUploader: f({
+    image: {
+      maxFileSize: "2MB",
+      maxFileCount: 1,
+    },
+  })
+    .middleware(async ({ req }) => {
+      const session = await auth();
+
+      if (!session?.user) {
+        throw new UploadThingError("Unauthorized");
+      }
+
+      if (!session.user.brandId) {
+        throw new UploadThingError("Marca nao identificada");
+      }
+
+      // Qualquer role pode gerar thumb (admin gera oficiais, vendedor gera pessoais)
+      return {
+        userId: session.user.id,
+        brandId: session.user.brandId,
+      };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return {
+        url: file.url,
+        brandId: metadata.brandId,
+      };
+    }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;

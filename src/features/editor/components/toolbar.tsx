@@ -17,11 +17,18 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignStartHorizontal,
+  AlignCenterHorizontal,
+  AlignEndHorizontal,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
   Trash,
   SquareSplitHorizontal,
   Copy,
   Lock,
   Unlock,
+  SquareStack,
 } from "lucide-react";
 
 import { isTextType } from "@/features/editor/utils";
@@ -61,7 +68,6 @@ export const Toolbar = ({
   const isTemplate = project?.isTemplate === true;
   const showControls = brandSettings?.showTemplateControls === true;
 
-  // Mostra o botao de bloqueio se: user e brand_admin E (esta editando template OU brand tem toggle ligado)
   const canToggleEditable = isBrandAdmin && (isTemplate || showControls);
 
   const initialFillColor = editor?.getActiveFillColor();
@@ -95,96 +101,50 @@ export const Toolbar = ({
   const isImage = selectedObjectType === "image";
 
   const onChangeFontSize = (value: number) => {
-    if (!selectedObject) {
-      return;
-    }
-
+    if (!selectedObject) return;
     editor?.changeFontSize(value);
-    setProperties((current) => ({
-      ...current,
-      fontSize: value,
-    }));
+    setProperties((current) => ({ ...current, fontSize: value }));
   };
 
   const onChangeTextAlign = (value: string) => {
-    if (!selectedObject) {
-      return;
-    }
-
+    if (!selectedObject) return;
     editor?.changeTextAlign(value);
-    setProperties((current) => ({
-      ...current,
-      textAlign: value,
-    }));
+    setProperties((current) => ({ ...current, textAlign: value }));
   };
 
   const toggleBold = () => {
-    if (!selectedObject) {
-      return;
-    }
-
+    if (!selectedObject) return;
     const newValue = properties.fontWeight > 500 ? 500 : 700;
-
     editor?.changeFontWeight(newValue);
-    setProperties((current) => ({
-      ...current,
-      fontWeight: newValue,
-    }));
+    setProperties((current) => ({ ...current, fontWeight: newValue }));
   };
 
   const toggleItalic = () => {
-    if (!selectedObject) {
-      return;
-    }
-
+    if (!selectedObject) return;
     const isItalic = properties.fontStyle === "italic";
     const newValue = isItalic ? "normal" : "italic";
-
     editor?.changeFontStyle(newValue);
-    setProperties((current) => ({
-      ...current,
-      fontStyle: newValue,
-    }));
+    setProperties((current) => ({ ...current, fontStyle: newValue }));
   };
 
   const toggleLinethrough = () => {
-    if (!selectedObject) {
-      return;
-    }
-
+    if (!selectedObject) return;
     const newValue = properties.fontLinethrough ? false : true;
-
     editor?.changeFontLinethrough(newValue);
-    setProperties((current) => ({
-      ...current,
-      fontLinethrough: newValue,
-    }));
+    setProperties((current) => ({ ...current, fontLinethrough: newValue }));
   };
 
   const toggleUnderline = () => {
-    if (!selectedObject) {
-      return;
-    }
-
+    if (!selectedObject) return;
     const newValue = properties.fontUnderline ? false : true;
-
     editor?.changeFontUnderline(newValue);
-    setProperties((current) => ({
-      ...current,
-      fontUnderline: newValue,
-    }));
+    setProperties((current) => ({ ...current, fontUnderline: newValue }));
   };
 
   const handleToggleEditable = () => {
-    if (!selectedObject) {
-      return;
-    }
-
+    if (!selectedObject) return;
     editor?.toggleEditable();
-    setProperties((current) => ({
-      ...current,
-      isEditable: !current.isEditable,
-    }));
+    setProperties((current) => ({ ...current, isEditable: !current.isEditable }));
   };
 
   if (editor?.selectedObjects.length === 0) {
@@ -192,6 +152,10 @@ export const Toolbar = ({
       <div className="shrink-0 h-[56px] border-b bg-white w-full flex items-center overflow-x-auto z-[49] p-2 gap-x-2" />
     );
   }
+
+  // Verifica se ha multiplos elementos selecionados (label dos botoes muda)
+  const multipleSelected = (editor?.selectedObjects?.length || 0) > 1;
+  const alignTargetLabel = multipleSelected ? "selecao" : "canvas";
 
   return (
     <div className="shrink-0 h-[56px] border-b bg-white w-full flex items-center overflow-x-auto z-[49] p-2 gap-x-2">
@@ -202,9 +166,7 @@ export const Toolbar = ({
               onClick={() => onChangeActiveTool("fill")}
               size="icon"
               variant="ghost"
-              className={cn(
-                activeTool === "fill" && "bg-gray-100"
-              )}
+              className={cn(activeTool === "fill" && "bg-gray-100")}
             >
               <div
                 className="rounded-sm size-4 border"
@@ -221,9 +183,7 @@ export const Toolbar = ({
               onClick={() => onChangeActiveTool("stroke-color")}
               size="icon"
               variant="ghost"
-              className={cn(
-                activeTool === "stroke-color" && "bg-gray-100"
-              )}
+              className={cn(activeTool === "stroke-color" && "bg-gray-100")}
             >
               <div
                 className="rounded-sm size-4 border-2 bg-white"
@@ -240,9 +200,7 @@ export const Toolbar = ({
               onClick={() => onChangeActiveTool("stroke-width")}
               size="icon"
               variant="ghost"
-              className={cn(
-                activeTool === "stroke-width" && "bg-gray-100"
-              )}
+              className={cn(activeTool === "stroke-width" && "bg-gray-100")}
             >
               <BsBorderWidth className="size-4" />
             </Button>
@@ -276,9 +234,7 @@ export const Toolbar = ({
               onClick={toggleBold}
               size="icon"
               variant="ghost"
-              className={cn(
-                properties.fontWeight > 500 && "bg-gray-100"
-              )}
+              className={cn(properties.fontWeight > 500 && "bg-gray-100")}
             >
               <FaBold className="size-4" />
             </Button>
@@ -292,9 +248,7 @@ export const Toolbar = ({
               onClick={toggleItalic}
               size="icon"
               variant="ghost"
-              className={cn(
-                properties.fontStyle === "italic" && "bg-gray-100"
-              )}
+              className={cn(properties.fontStyle === "italic" && "bg-gray-100")}
             >
               <FaItalic className="size-4" />
             </Button>
@@ -308,9 +262,7 @@ export const Toolbar = ({
               onClick={toggleUnderline}
               size="icon"
               variant="ghost"
-              className={cn(
-                properties.fontUnderline && "bg-gray-100"
-              )}
+              className={cn(properties.fontUnderline && "bg-gray-100")}
             >
               <FaUnderline className="size-4" />
             </Button>
@@ -324,9 +276,7 @@ export const Toolbar = ({
               onClick={toggleLinethrough}
               size="icon"
               variant="ghost"
-              className={cn(
-                properties.fontLinethrough && "bg-gray-100"
-              )}
+              className={cn(properties.fontLinethrough && "bg-gray-100")}
             >
               <FaStrikethrough className="size-4" />
             </Button>
@@ -340,9 +290,7 @@ export const Toolbar = ({
               onClick={() => onChangeTextAlign("left")}
               size="icon"
               variant="ghost"
-              className={cn(
-                properties.textAlign === "left" && "bg-gray-100"
-              )}
+              className={cn(properties.textAlign === "left" && "bg-gray-100")}
             >
               <AlignLeft className="size-4" />
             </Button>
@@ -356,9 +304,7 @@ export const Toolbar = ({
               onClick={() => onChangeTextAlign("center")}
               size="icon"
               variant="ghost"
-              className={cn(
-                properties.textAlign === "center" && "bg-gray-100"
-              )}
+              className={cn(properties.textAlign === "center" && "bg-gray-100")}
             >
               <AlignCenter className="size-4" />
             </Button>
@@ -372,9 +318,7 @@ export const Toolbar = ({
               onClick={() => onChangeTextAlign("right")}
               size="icon"
               variant="ghost"
-              className={cn(
-                properties.textAlign === "right" && "bg-gray-100"
-              )}
+              className={cn(properties.textAlign === "right" && "bg-gray-100")}
             >
               <AlignRight className="size-4" />
             </Button>
@@ -383,10 +327,10 @@ export const Toolbar = ({
       )}
       {isText && (
         <div className="flex items-center h-full justify-center">
-         <FontSizeInput
+          <FontSizeInput
             value={properties.fontSize}
             onChange={onChangeFontSize}
-         />
+          />
         </div>
       )}
       {isImage && (
@@ -396,9 +340,7 @@ export const Toolbar = ({
               onClick={() => onChangeActiveTool("filter")}
               size="icon"
               variant="ghost"
-              className={cn(
-                activeTool === "filter" && "bg-gray-100"
-              )}
+              className={cn(activeTool === "filter" && "bg-gray-100")}
             >
               <TbColorFilter className="size-4" />
             </Button>
@@ -412,15 +354,14 @@ export const Toolbar = ({
               onClick={() => onChangeActiveTool("remove-bg")}
               size="icon"
               variant="ghost"
-              className={cn(
-                activeTool === "remove-bg" && "bg-gray-100"
-              )}
+              className={cn(activeTool === "remove-bg" && "bg-gray-100")}
             >
               <SquareSplitHorizontal className="size-4" />
             </Button>
           </Hint>
         </div>
       )}
+
       <div className="flex items-center h-full justify-center">
         <Hint label="Bring forward" side="bottom" sideOffset={5}>
           <Button
@@ -443,6 +384,108 @@ export const Toolbar = ({
           </Button>
         </Hint>
       </div>
+
+      {/* GRUPO DE ALINHAMENTO */}
+      <div className="h-6 w-px bg-slate-200 mx-1" />
+
+      <div className="flex items-center h-full justify-center">
+        <Hint label={`Alinhar esquerda (${alignTargetLabel})`} side="bottom" sideOffset={5}>
+          <Button
+            onClick={() => editor?.alignLeft()}
+            size="icon"
+            variant="ghost"
+          >
+            <AlignStartVertical className="size-4" />
+          </Button>
+        </Hint>
+      </div>
+      <div className="flex items-center h-full justify-center">
+        <Hint label={`Centralizar horizontal (${alignTargetLabel})`} side="bottom" sideOffset={5}>
+          <Button
+            onClick={() => editor?.alignCenterX()}
+            size="icon"
+            variant="ghost"
+          >
+            <AlignCenterVertical className="size-4" />
+          </Button>
+        </Hint>
+      </div>
+      <div className="flex items-center h-full justify-center">
+        <Hint label={`Alinhar direita (${alignTargetLabel})`} side="bottom" sideOffset={5}>
+          <Button
+            onClick={() => editor?.alignRight()}
+            size="icon"
+            variant="ghost"
+          >
+            <AlignEndVertical className="size-4" />
+          </Button>
+        </Hint>
+      </div>
+
+      <div className="h-6 w-px bg-slate-200 mx-1" />
+
+      <div className="flex items-center h-full justify-center">
+        <Hint label={`Alinhar topo (${alignTargetLabel})`} side="bottom" sideOffset={5}>
+          <Button
+            onClick={() => editor?.alignTop()}
+            size="icon"
+            variant="ghost"
+          >
+            <AlignStartHorizontal className="size-4" />
+          </Button>
+        </Hint>
+      </div>
+      <div className="flex items-center h-full justify-center">
+        <Hint label={`Centralizar vertical (${alignTargetLabel})`} side="bottom" sideOffset={5}>
+          <Button
+            onClick={() => editor?.alignCenterY()}
+            size="icon"
+            variant="ghost"
+          >
+            <AlignCenterHorizontal className="size-4" />
+          </Button>
+        </Hint>
+      </div>
+      <div className="flex items-center h-full justify-center">
+        <Hint label={`Alinhar base (${alignTargetLabel})`} side="bottom" sideOffset={5}>
+          <Button
+            onClick={() => editor?.alignBottom()}
+            size="icon"
+            variant="ghost"
+          >
+            <AlignEndHorizontal className="size-4" />
+          </Button>
+        </Hint>
+      </div>
+
+      <div className="h-6 w-px bg-slate-200 mx-1" />
+
+      {(() => {
+        // Regra: admin sempre ve; user/vendedor so em elemento editavel
+        const role = brandSettings?.userRole;
+        const isSellerRole = role === "user" || role === "dealership_admin";
+        // @ts-ignore - propriedade custom
+        const elementIsEditable = selectedObject?.get && selectedObject.get("isEditable") === true;
+        const showShadow = !isSellerRole || elementIsEditable;
+
+        if (!showShadow) return null;
+
+        return (
+          <div className="flex items-center h-full justify-center">
+            <Hint label="Sombra" side="bottom" sideOffset={5}>
+              <Button
+                onClick={() => onChangeActiveTool("shadow")}
+                size="icon"
+                variant="ghost"
+                className={cn(activeTool === "shadow" && "bg-gray-100")}
+              >
+                <SquareStack className="size-4" />
+              </Button>
+            </Hint>
+          </div>
+        );
+      })()}  
+
       <div className="flex items-center h-full justify-center">
         <Hint label="Opacity" side="bottom" sideOffset={5}>
           <Button
