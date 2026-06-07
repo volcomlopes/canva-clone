@@ -337,6 +337,8 @@ export const LayersSidebar = ({
   const onToggleVisibility = (layer: LayerItem) => {
     layer.obj.set({ visible: !layer.visible });
     editor?.canvas.requestRenderAll();
+    // Dispara object:modified pra acionar o auto-save
+    editor?.canvas.fire("object:modified", { target: layer.obj });
   };
 
   const onDelete = (layer: LayerItem) => {
@@ -393,6 +395,9 @@ export const LayersSidebar = ({
     workspace?.sendToBack();
 
     canvas.requestRenderAll();
+
+    // Dispara object:modified pra acionar o auto-save
+    canvas.fire("object:modified", { target: movedLayer.obj });
   };
 
   const onClose = () => {

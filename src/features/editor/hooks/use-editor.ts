@@ -1,11 +1,15 @@
 import { fabric } from "fabric";
 import { useCallback, useState, useMemo, useRef } from "react";
 
+
+
 import {
   Editor,
   FILL_COLOR,
   STROKE_WIDTH,
   STROKE_COLOR,
+  GradientOptions,
+  GradientType,
   CIRCLE_OPTIONS,
   DIAMOND_OPTIONS,
   TRIANGLE_OPTIONS,
@@ -679,6 +683,98 @@ const buildEditor = ({
       canvas.renderAll();
       save();
     },
+
+    changeFillGradient: (gradient: GradientOptions | null) => {
+      canvas.getActiveObjects().forEach((object) => {
+        if (gradient === null) {
+          // Remove gradiente - volta pra cor solida (usa fillColor atual ou branco)
+          object.set({ fill: fillColor || "#000000" });
+        } else {
+          // Calcula coords baseado no tipo e angulo
+          const objWidth = (object.width || 0) * (object.scaleX || 1);
+          const objHeight = (object.height || 0) * (object.scaleY || 1);
+
+          let coords: any;
+
+          if (gradient.type === "linear") {
+            const rad = (gradient.angle * Math.PI) / 180;
+            const cx = objWidth / 2;
+            const cy = objHeight / 2;
+            const dx = Math.cos(rad) * cx;
+            const dy = Math.sin(rad) * cy;
+            coords = {
+              x1: cx - dx,
+              y1: cy - dy,
+              x2: cx + dx,
+              y2: cy + dy,
+            };
+          } else {
+            // radial: do centro pra fora
+            coords = {
+              x1: objWidth / 2,
+              y1: objHeight / 2,
+              r1: 0,
+              x2: objWidth / 2,
+              y2: objHeight / 2,
+              r2: Math.max(objWidth, objHeight) / 2,
+            };
+          }
+
+          const fabricGradient = new fabric.Gradient({
+            type: gradient.type,
+            coords: coords,
+            colorStops: gradient.colorStops.map(function (stop) {
+              return {
+                offset: stop.offset,
+                color: stop.color,
+              };
+            }),
+          });
+
+          object.set({ fill: fabricGradient as any });
+        }
+      });
+      canvas.requestRenderAll();
+      save();
+    },
+
+    getActiveFillGradient: (): GradientOptions | null => {
+      const selectedObject = selectedObjects[0];
+      if (!selectedObject) return null;
+
+      const fill = selectedObject.get("fill");
+      if (!fill || typeof fill === "string") return null;
+
+      // @ts-ignore - fabric.Gradient tem essas propriedades
+      const grad = fill as fabric.Gradient;
+      // @ts-ignore - colorStops existe
+      const stops = grad.colorStops || [];
+
+      // @ts-ignore - type existe
+      const gradType = (grad.type as GradientType) || "linear";
+
+      // Recupera angulo se for linear (aproximacao reversa)
+      let angle = 90;
+      // @ts-ignore - coords existe
+      const coords = grad.coords as any;
+      if (gradType === "linear" && coords) {
+        const dx = (coords.x2 || 0) - (coords.x1 || 0);
+        const dy = (coords.y2 || 0) - (coords.y1 || 0);
+        angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+      }
+
+      return {
+        type: gradType,
+        angle: angle,
+        colorStops: stops.map(function (s: any) {
+          return {
+            offset: s.offset || 0,
+            color: s.color || "#000000",
+          };
+        }),
+      };
+    },  
+
     changeFillColor: (value: string) => {
       setFillColor(value);
       canvas.getActiveObjects().forEach((object) => {

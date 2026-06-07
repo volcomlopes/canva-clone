@@ -29,6 +29,7 @@ import {
   Lock,
   Unlock,
   SquareStack,
+  Palette,
 } from "lucide-react";
 
 import { isTextType } from "@/features/editor/utils";
@@ -459,6 +460,34 @@ export const Toolbar = ({
       </div>
 
       <div className="h-6 w-px bg-slate-200 mx-1" />
+
+            
+      {/* GRADIENTE - so em formas (nao em texto/imagem) */}
+      {!isText && !isImage && (() => {
+        const role = brandSettings?.userRole;
+        const isSellerRole = role === "user" || role === "dealership_admin";
+        // @ts-ignore - propriedade custom
+        const elementIsEditable = selectedObject?.get && selectedObject.get("isEditable") === true;
+        const showGradient = !isSellerRole || elementIsEditable;
+
+        if (!showGradient) return null;
+
+        return (
+          <div className="flex items-center h-full justify-center">
+            <Hint label="Gradiente" side="bottom" sideOffset={5}>
+              <Button
+                onClick={() => onChangeActiveTool("gradient")}
+                size="icon"
+                variant="ghost"
+                className={cn(activeTool === "gradient" && "bg-gray-100")}
+              >
+                <Palette className="size-4" />
+              </Button>
+            </Hint>
+          </div>
+        );
+      })()}
+              
 
       {(() => {
         // Regra: admin sempre ve; user/vendedor so em elemento editavel

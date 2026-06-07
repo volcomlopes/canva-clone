@@ -95,6 +95,7 @@ export const colors = [
 
 export type ActiveTool =
   | "select"
+  | "gradient"
   | "layers"
   | "shadow"
   | "shapes"
@@ -261,6 +262,8 @@ export interface Editor {
   changeFillColor: (value: string) => void;
   changeStrokeColor: (value: string) => void;
   changeStrokeDashArray: (value: number[]) => void;
+  changeFillGradient: (gradient: GradientOptions | null) => void;
+  getActiveFillGradient: () => GradientOptions | null;
   addCircle: () => void;
   addSoftRectangle: () => void;
   addRectangle: () => void;
@@ -292,4 +295,78 @@ export const SHADOW_PRESETS: Record<string, ShadowOptions | null> = {
   medium: { color: "rgba(0,0,0,0.4)", blur: 15, offsetX: 0, offsetY: 8 },
   strong: { color: "rgba(0,0,0,0.6)", blur: 25, offsetX: 0, offsetY: 12 },
   glow: { color: "rgba(99,102,241,0.7)", blur: 30, offsetX: 0, offsetY: 0 },
+};
+
+export type GradientType = "linear" | "radial";
+
+export interface GradientColorStop {
+  offset: number; // 0 a 1
+  color: string;  // hex ou rgba
+}
+
+export interface GradientOptions {
+  type: GradientType;
+  angle: number;          // 0-360 (so usado em linear)
+  colorStops: GradientColorStop[];
+}
+
+export const DEFAULT_GRADIENT: GradientOptions = {
+  type: "linear",
+  angle: 90,
+  colorStops: [
+    { offset: 0, color: "#3b82f6" },
+    { offset: 1, color: "#a855f7" },
+  ],
+};
+
+export const GRADIENT_PRESETS: Record<string, GradientOptions> = {
+  sunset: {
+    type: "linear",
+    angle: 90,
+    colorStops: [
+      { offset: 0, color: "#ff6b6b" },
+      { offset: 1, color: "#feca57" },
+    ],
+  },
+  ocean: {
+    type: "linear",
+    angle: 90,
+    colorStops: [
+      { offset: 0, color: "#3b82f6" },
+      { offset: 1, color: "#06b6d4" },
+    ],
+  },
+  forest: {
+    type: "linear",
+    angle: 90,
+    colorStops: [
+      { offset: 0, color: "#10b981" },
+      { offset: 1, color: "#84cc16" },
+    ],
+  },
+  purple: {
+    type: "linear",
+    angle: 90,
+    colorStops: [
+      { offset: 0, color: "#a855f7" },
+      { offset: 1, color: "#ec4899" },
+    ],
+  },
+  dark: {
+    type: "linear",
+    angle: 90,
+    colorStops: [
+      { offset: 0, color: "#1e293b" },
+      { offset: 1, color: "#475569" },
+    ],
+  },
+  fire: {
+    type: "radial",
+    angle: 0,
+    colorStops: [
+      { offset: 0, color: "#fbbf24" },
+      { offset: 0.5, color: "#f97316" },
+      { offset: 1, color: "#dc2626" },
+    ],
+  },
 };
