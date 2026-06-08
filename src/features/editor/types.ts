@@ -95,7 +95,6 @@ export const colors = [
 
 export type ActiveTool =
   | "select"
-  | "gradient"
   | "layers"
   | "shadow"
   | "shapes"

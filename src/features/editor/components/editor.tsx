@@ -4,7 +4,6 @@ import { useGetBrandSettings } from "@/features/brand-settings/api/use-get-brand
 import { ShadowSidebar } from "@/features/editor/components/shadow-sidebar";
 import { useSnapGuides } from "@/features/editor/hooks/use-snap-guides";
 import { LayersSidebar } from "@/features/editor/components/layers-sidebar";
-import { GradientSidebar } from "@/features/editor/components/gradient-sidebar";
 
 import { fabric } from "fabric";
 import debounce from "lodash.debounce";
@@ -194,11 +193,6 @@ export const Editor = ({ initialData }: EditorProps) => {
           onChangeActiveTool={onChangeActiveTool}
         />
         <ShadowSidebar
-          editor={editor}
-          activeTool={activeTool}
-          onChangeActiveTool={onChangeActiveTool}
-        />
-        <GradientSidebar
           editor={editor}
           activeTool={activeTool}
           onChangeActiveTool={onChangeActiveTool}
