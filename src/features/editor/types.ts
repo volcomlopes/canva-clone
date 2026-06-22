@@ -97,6 +97,8 @@ export type ActiveTool =
   | "select"
   | "layers"
   | "shadow"
+  | "font-spacing"
+  | "corner-radius"
   | "shapes"
   | "text"
   | "images"
@@ -212,6 +214,8 @@ export interface Editor {
   saveJpg: () => void;
   saveSvg: () => void;
   saveJson: () => void;
+  savePdf: (dpi?: "screen" | "print") => void;
+  generateThumbnail: () => string;
   loadJson: (json: string) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -230,8 +234,14 @@ export interface Editor {
   changeImageFilter: (value: string) => void;
   addImage: (value: string) => void;
   delete: () => void;
+  changeFillRadius: (value: number) => void;
+  getActiveFillRadius: () => number;
   changeFontSize: (value: number) => void;
   getActiveFontSize: () => number;
+  changeFontLineHeight: (value: number) => void;
+  getActiveFontLineHeight: () => number;
+  changeFontCharSpacing: (value: number) => void;
+  getActiveFontCharSpacing: () => number;
   changeTextAlign: (value: string) => void;
   getActiveTextAlign: () => string;
   changeFontUnderline: (value: boolean) => void;

@@ -29,10 +29,15 @@ import {
   Lock,
   Unlock,
   SquareStack,
+  MoveVertical,
+  Spline,
 } from "lucide-react";
+
+
 
 import { isTextType } from "@/features/editor/utils";
 import { FontSizeInput } from "@/features/editor/components/font-size-input";
+
 import {
   ActiveTool,
   Editor,
@@ -79,6 +84,8 @@ export const Toolbar = ({
   const initialFontUnderline = editor?.getActiveFontUnderline();
   const initialTextAlign = editor?.getActiveTextAlign();
   const initialFontSize = editor?.getActiveFontSize() || FONT_SIZE;
+  const initialLineHeight = editor?.getActiveFontLineHeight() || 1.16;
+  const initialCharSpacing = editor?.getActiveFontCharSpacing() || 0;
   const initialIsEditable = editor?.getActiveEditable() || false;
 
   const [properties, setProperties] = useState({
@@ -91,6 +98,8 @@ export const Toolbar = ({
     fontUnderline: initialFontUnderline,
     textAlign: initialTextAlign,
     fontSize: initialFontSize,
+    lineHeight: initialLineHeight,
+    charSpacing: initialCharSpacing,
     isEditable: initialIsEditable,
   });
 
@@ -99,11 +108,36 @@ export const Toolbar = ({
 
   const isText = isTextType(selectedObjectType);
   const isImage = selectedObjectType === "image";
+  const isRectangle = selectedObjectType === "rect";
 
   const onChangeFontSize = (value: number) => {
     if (!selectedObject) return;
     editor?.changeFontSize(value);
     setProperties((current) => ({ ...current, fontSize: value }));
+  };
+
+const onChangeLineHeight = (value: number) => {
+    if (!selectedObject) {
+      return;
+    }
+
+    editor?.changeFontLineHeight(value);
+    setProperties((current) => ({
+      ...current,
+      lineHeight: value,
+    }));
+  };
+
+  const onChangeCharSpacing = (value: number) => {
+    if (!selectedObject) {
+      return;
+    }
+
+    editor?.changeFontCharSpacing(value);
+    setProperties((current) => ({
+      ...current,
+      charSpacing: value,
+    }));
   };
 
   const onChangeTextAlign = (value: string) => {
@@ -331,6 +365,18 @@ export const Toolbar = ({
             value={properties.fontSize}
             onChange={onChangeFontSize}
           />
+          <div className="flex items-center h-full justify-center">
+            <Hint label="Espacamento" side="bottom" sideOffset={5}>
+              <Button
+                onClick={() => onChangeActiveTool("font-spacing")}
+                size="icon"
+                variant="ghost"
+                className={cn(activeTool === "font-spacing" && "bg-gray-100")}
+              >
+                <MoveVertical className="size-4" />
+              </Button>
+            </Hint>
+          </div>
         </div>
       )}
       {isImage && (
@@ -357,6 +403,21 @@ export const Toolbar = ({
               className={cn(activeTool === "remove-bg" && "bg-gray-100")}
             >
               <SquareSplitHorizontal className="size-4" />
+            </Button>
+          </Hint>
+        </div>
+      )}
+
+      {isRectangle && (
+        <div className="flex items-center h-full justify-center">
+          <Hint label="Cantos arredondados" side="bottom" sideOffset={5}>
+            <Button
+              onClick={() => onChangeActiveTool("corner-radius")}
+              size="icon"
+              variant="ghost"
+              className={cn(activeTool === "corner-radius" && "bg-gray-100")}
+            >
+              <Spline className="size-4" />
             </Button>
           </Hint>
         </div>

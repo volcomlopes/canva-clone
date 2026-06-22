@@ -525,6 +525,30 @@ export const Navbar = ({
                     </p>
                   </div>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center gap-x-2"
+                  onClick={() => editor?.savePdf("screen")}
+                >
+                  <CiFileOn className="size-8" />
+                  <div>
+                    <p>PDF (Tela)</p>
+                    <p className="text-xs text-muted-foreground">
+                      72dpi - leve, para visualizar
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center gap-x-2"
+                  onClick={() => editor?.savePdf("print")}
+                >
+                  <CiFileOn className="size-8" />
+                  <div>
+                    <p>PDF (Impressao)</p>
+                    <p className="text-xs text-muted-foreground">
+                      300dpi - pesado, para grafica
+                    </p>
+                  </div>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <UserButton />

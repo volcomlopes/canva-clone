@@ -1,5 +1,10 @@
 import { fabric } from "fabric";
 import { useCallback, useState, useMemo, useRef } from "react";
+import { jsPDF } from "jspdf";
+import {
+  applyCornerRadiusControls,
+  updateRadiusHandleOffsets,
+} from "@/features/editor/utils/rect-controls";
 
 
 
@@ -81,6 +86,40 @@ const buildEditor = ({
     const dataUrl = canvas.toDataURL(options);
 
     downloadFile(dataUrl, "png");
+    autoZoom();
+  };
+
+  const savePdf = (dpi: "screen" | "print" = "screen") => {
+    const workspace = getWorkspace() as fabric.Rect;
+    const width = workspace?.width || 1080;
+    const height = workspace?.height || 1080;
+
+    // Tela = 1x (72dpi base do Fabric). Impressao = ~4x pra chegar perto de 300dpi
+    const multiplier = dpi === "print" ? 4 : 1;
+
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+
+    const dataUrl = canvas.toDataURL({
+      width: width,
+      height: height,
+      left: workspace.left,
+      top: workspace.top,
+      format: "jpeg",
+      quality: 1,
+      multiplier: multiplier,
+    });
+
+    // Cria um PDF do tamanho EXATO da arte (em pixels = pontos pt)
+    const orientation = width > height ? "landscape" : "portrait";
+    const pdf = new jsPDF({
+      orientation: orientation,
+      unit: "px",
+      format: [width, height],
+    });
+
+    pdf.addImage(dataUrl, "JPEG", 0, 0, width, height);
+    pdf.save("artbase-export.pdf");
+
     autoZoom();
   };
   
@@ -176,6 +215,7 @@ const buildEditor = ({
     saveJpg,
     saveSvg,
     saveJson,
+    savePdf,
     loadJson,
     generateThumbnail,
     canUndo,
@@ -307,6 +347,91 @@ const buildEditor = ({
 
       return value;
     },
+
+changeFontLineHeight: (value: number) => {
+      canvas.getActiveObjects().forEach((object) => {
+        if (isTextType(object.type)) {
+          // @ts-ignore
+          // Faulty TS library, lineHeight exists.
+          object.set({ lineHeight: value });
+        }
+      });
+      canvas.renderAll();
+      save();
+    },
+    getActiveFontLineHeight: () => {
+      const selectedObject = selectedObjects[0];
+
+      if (!selectedObject) {
+        return 1.16;
+      }
+
+      // @ts-ignore
+      // Faulty TS library, lineHeight exists.
+      const value = selectedObject.get("lineHeight") || 1.16;
+
+      return value;
+    },
+    changeFontCharSpacing: (value: number) => {
+      canvas.getActiveObjects().forEach((object) => {
+        if (isTextType(object.type)) {
+          // @ts-ignore
+          // Faulty TS library, charSpacing exists.
+          object.set({ charSpacing: value });
+        }
+      });
+      canvas.renderAll();
+      save();
+    },
+    getActiveFontCharSpacing: () => {
+      const selectedObject = selectedObjects[0];
+
+      if (!selectedObject) {
+        return 0;
+      }
+
+      // @ts-ignore
+      // Faulty TS library, charSpacing exists.
+      const value = selectedObject.get("charSpacing") || 0;
+
+      return value;
+    },
+    changeFillRadius: (value: number) => {
+      canvas.getActiveObjects().forEach((object) => {
+        if (object.type === "rect") {
+          const scaleX = object.scaleX || 1;
+          const scaleY = object.scaleY || 1;
+          // Tamanho VISUAL da forma
+          const visualWidth = (object.width || 0) * scaleX;
+          const visualHeight = (object.height || 0) * scaleY;
+          // Raio maximo possivel = metade da menor dimensao visual
+          const maxRadius = Math.min(visualWidth, visualHeight) / 2;
+          // Clamp do valor pedido
+          const clampedValue = Math.min(value, maxRadius);
+
+          (object as fabric.Rect).set({
+            rx: clampedValue / scaleX,
+            ry: clampedValue / scaleY,
+          });
+          updateRadiusHandleOffsets(object as fabric.Rect);
+        }
+      });
+      canvas.requestRenderAll();
+      save();
+    },
+    getActiveFillRadius: () => {
+      const selectedObject = selectedObjects[0];
+
+      if (!selectedObject || selectedObject.type !== "rect") {
+        return 0;
+      }
+
+      // @ts-ignore
+      const rx = selectedObject.get("rx") || 0;
+      const scaleX = selectedObject.scaleX || 1;
+      return Math.round(rx * scaleX);
+    },
+
     changeTextAlign: (value: string) => {
       canvas.getActiveObjects().forEach((object) => {
         if (isTextType(object.type)) {
@@ -837,6 +962,7 @@ const buildEditor = ({
         strokeDashArray: strokeDashArray,
       });
 
+      applyCornerRadiusControls(object);
       addToCanvas(object);
     },
     addRectangle: () => {

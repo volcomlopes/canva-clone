@@ -2,6 +2,8 @@
 import { useGetProject } from "@/features/projects/api/use-get-project";
 import { useGetBrandSettings } from "@/features/brand-settings/api/use-get-brand-settings";
 import { ShadowSidebar } from "@/features/editor/components/shadow-sidebar";
+import { FontSpacingSidebar } from "@/features/editor/components/font-spacing-sidebar";
+import { CornerRadiusSidebar } from "@/features/editor/components/corner-radius-sidebar";
 import { useSnapGuides } from "@/features/editor/hooks/use-snap-guides";
 import { LayersSidebar } from "@/features/editor/components/layers-sidebar";
 
@@ -197,7 +199,17 @@ export const Editor = ({ initialData }: EditorProps) => {
           activeTool={activeTool}
           onChangeActiveTool={onChangeActiveTool}
         />
-        <LayersSidebar
+        <FontSpacingSidebar
+          editor={editor}
+          activeTool={activeTool}
+          onChangeActiveTool={onChangeActiveTool}
+        />
+        <CornerRadiusSidebar
+          editor={editor}
+          activeTool={activeTool}
+          onChangeActiveTool={onChangeActiveTool}
+        />
+          <LayersSidebar
           editor={editor}
           activeTool={activeTool}
           onChangeActiveTool={onChangeActiveTool}
