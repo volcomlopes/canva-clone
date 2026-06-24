@@ -28,6 +28,9 @@ import {
   FONT_WEIGHT,
   FONT_SIZE,
   JSON_KEYS,
+  LINE_OPTIONS,
+  STAR_OPTIONS,
+  ARROW_OPTIONS,
 } from "@/features/editor/types";
 import { useHistory } from "@/features/editor/hooks/use-history";
 import {
@@ -65,6 +68,104 @@ const buildEditor = ({
   strokeDashArray,
   setStrokeDashArray,
 }: BuildEditorProps): Editor => {
+
+  // Aplica o crop de fato (usado pelo botao Aplicar e pelo clicar-fora)
+  const editorApplyCrop = () => {
+    // @ts-ignore
+    const image = canvas._cropTarget as fabric.Image | undefined;
+    // @ts-ignore
+    const rect = canvas._cropRect as fabric.Rect | undefined;
+
+    // Remove o listener de clicar-fora
+    // @ts-ignore
+    if (canvas._cropMouseDown) {
+      // @ts-ignore
+      canvas.off("mouse:down", canvas._cropMouseDown);
+      // @ts-ignore
+      canvas._cropMouseDown = undefined;
+    }
+
+    // @ts-ignore
+    const onEnd = canvas._cropOnEnd as (() => void) | undefined;
+    // @ts-ignore
+    canvas._cropOnEnd = undefined;
+
+    if (!image || !rect) {
+      canvas.discardActiveObject();
+      // @ts-ignore
+      canvas._cropTarget = undefined;
+      // @ts-ignore
+      canvas._cropRect = undefined;
+      canvas.requestRenderAll();
+      onEnd?.();
+      return;
+    }
+
+    const scaleX = image.scaleX || 1;
+    const scaleY = image.scaleY || 1;
+    const imgLeft = image.left || 0;
+    const imgTop = image.top || 0;
+
+    const rectLeft = rect.left || 0;
+    const rectTop = rect.top || 0;
+    const rectWidth = rect.getScaledWidth();
+    const rectHeight = rect.getScaledHeight();
+
+    const prevCropX = image.cropX || 0;
+    const prevCropY = image.cropY || 0;
+
+    let newCropX = prevCropX + (rectLeft - imgLeft) / scaleX;
+    let newCropY = prevCropY + (rectTop - imgTop) / scaleY;
+    let newWidth = rectWidth / scaleX;
+    let newHeight = rectHeight / scaleY;
+
+    const element = image.getElement() as HTMLImageElement;
+    const naturalW = element.naturalWidth || image.width || 0;
+    const naturalH = element.naturalHeight || image.height || 0;
+
+    if (newCropX < 0) newCropX = 0;
+    if (newCropY < 0) newCropY = 0;
+    if (newCropX + newWidth > naturalW) newWidth = naturalW - newCropX;
+    if (newCropY + newHeight > naturalH) newHeight = naturalH - newCropY;
+
+    canvas.discardActiveObject();
+    canvas.remove(rect);
+
+    if (newWidth < 10 || newHeight < 10) {
+      image.set({ selectable: true, evented: true });
+      // @ts-ignore
+      canvas._cropTarget = undefined;
+      // @ts-ignore
+      canvas._cropRect = undefined;
+      canvas.setActiveObject(image);
+      canvas.requestRenderAll();
+      onEnd?.();
+      return;
+    }
+
+    image.set({
+      cropX: newCropX,
+      cropY: newCropY,
+      width: newWidth,
+      height: newHeight,
+      left: rectLeft,
+      top: rectTop,
+      selectable: true,
+      evented: true,
+    });
+    image.setCoords();
+
+    // @ts-ignore
+    canvas._cropTarget = undefined;
+    // @ts-ignore
+    canvas._cropRect = undefined;
+
+    canvas.setActiveObject(image);
+    canvas.requestRenderAll();
+    save();
+    onEnd?.();
+  };
+
   const generateSaveOptions = () => {
     const { width, height, left, top } = getWorkspace() as fabric.Rect;
 
@@ -282,6 +383,153 @@ const buildEditor = ({
       });
       save();
     },
+
+    startCrop: (onEnd?: () => void) => {
+      // @ts-ignore
+      if (canvas._cropRect) {
+        // limpa um crop anterior que ficou pendente
+        // @ts-ignore
+        if (canvas._cropMouseDown) {
+          // @ts-ignore
+          canvas.off("mouse:down", canvas._cropMouseDown);
+          // @ts-ignore
+          canvas._cropMouseDown = undefined;
+        }
+        canvas.discardActiveObject();
+        // @ts-ignore
+        canvas.remove(canvas._cropRect);
+        // @ts-ignore
+        if (canvas._cropTarget) {
+          // @ts-ignore
+          canvas._cropTarget.set({ selectable: true, evented: true });
+        }
+        // @ts-ignore
+        canvas._cropRect = undefined;
+        // @ts-ignore
+        canvas._cropTarget = undefined;
+        // @ts-ignore
+        canvas._cropOnEnd = undefined;
+      }
+
+      const image = canvas.getActiveObject() as fabric.Image;
+
+      if (!image || image.type !== "image") {
+        return;
+      }
+
+      image.set({
+        selectable: false,
+        evented: false,
+      });
+
+      const imgLeft = image.left || 0;
+      const imgTop = image.top || 0;
+      const imgWidth = image.getScaledWidth();
+      const imgHeight = image.getScaledHeight();
+
+      const rect = new fabric.Rect({
+        left: imgLeft,
+        top: imgTop,
+        width: imgWidth,
+        height: imgHeight,
+        fill: "rgba(0,0,0,0.0)",
+        stroke: "#3b82f6",
+        strokeWidth: 2,
+        strokeDashArray: [6, 4],
+        cornerColor: "#3b82f6",
+        cornerStrokeColor: "#ffffff",
+        cornerStyle: "circle",
+        cornerSize: 12,
+        transparentCorners: false,
+        hasRotatingPoint: false,
+        lockRotation: true,
+        objectCaching: false,
+        excludeFromExport: true,
+      });
+
+      rect.setControlsVisibility({
+        mt: true,
+        mb: true,
+        ml: true,
+        mr: true,
+        mtr: false,
+        tl: true,
+        tr: true,
+        bl: true,
+        br: true,
+      });
+
+      // @ts-ignore
+      canvas._cropTarget = image;
+      // @ts-ignore
+      canvas._cropRect = rect;
+      // @ts-ignore
+      canvas._cropOnEnd = onEnd;
+
+      canvas.add(rect);
+      canvas.setActiveObject(rect);
+
+      // Clicar FORA do quadrado de recorte aplica o crop (igual Canva/PowerPoint)
+      const onMouseDown = (opt: fabric.IEvent) => {
+        // @ts-ignore
+        if (!canvas._cropTarget || !canvas._cropRect) return;
+        // Clicou no proprio quadrado (ou nas alcas dele): nao aplica, deixa ajustar
+        // @ts-ignore
+        if (opt.target === canvas._cropRect) return;
+        editorApplyCrop();
+      };
+      // @ts-ignore
+      canvas._cropMouseDown = onMouseDown;
+      canvas.on("mouse:down:before", onMouseDown);
+
+      canvas.requestRenderAll();
+    },
+    applyCrop: () => {
+      editorApplyCrop();
+    },
+    cancelCrop: () => {
+      // @ts-ignore
+      const image = canvas._cropTarget as fabric.Image | undefined;
+      // @ts-ignore
+      const rect = canvas._cropRect as fabric.Rect | undefined;
+
+      // @ts-ignore
+      if (canvas._cropMouseDown) {
+        // @ts-ignore
+        canvas.off("mouse:down", canvas._cropMouseDown);
+        // @ts-ignore
+        canvas._cropMouseDown = undefined;
+      }
+
+      // @ts-ignore
+      const onEnd = canvas._cropOnEnd as (() => void) | undefined;
+      // @ts-ignore
+      canvas._cropOnEnd = undefined;
+
+      canvas.discardActiveObject();
+
+      if (rect) {
+        canvas.remove(rect);
+      }
+
+      if (image) {
+        image.set({ selectable: true, evented: true });
+        canvas.setActiveObject(image);
+      }
+
+      // @ts-ignore
+      canvas._cropTarget = undefined;
+      // @ts-ignore
+      canvas._cropRect = undefined;
+
+      canvas.requestRenderAll();
+      onEnd?.();
+    },
+    isCropping: () => {
+      // @ts-ignore
+      return !!canvas._cropTarget;
+    },
+
     addImage: (value: string) => {
       fabric.Image.fromURL(
         value,
@@ -1029,6 +1277,77 @@ changeFontLineHeight: (value: number) => {
       );
       addToCanvas(object);
     },
+
+    addStar: () => {
+      const WIDTH = 200;
+      const HEIGHT = 200;
+      const spikes = 5;
+      const outerRadius = WIDTH / 2;
+      const innerRadius = WIDTH / 4;
+      const cx = WIDTH / 2;
+      const cy = HEIGHT / 2;
+      const points: { x: number; y: number }[] = [];
+      let rot = (Math.PI / 2) * 3;
+      const step = Math.PI / spikes;
+
+      for (let i = 0; i < spikes; i++) {
+        points.push({
+          x: cx + Math.cos(rot) * outerRadius,
+          y: cy + Math.sin(rot) * outerRadius,
+        });
+        rot += step;
+        points.push({
+          x: cx + Math.cos(rot) * innerRadius,
+          y: cy + Math.sin(rot) * innerRadius,
+        });
+        rot += step;
+      }
+
+      const object = new fabric.Polygon(points, {
+        ...STAR_OPTIONS,
+        fill: fillColor,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
+        strokeDashArray: strokeDashArray,
+      });
+
+      addToCanvas(object);
+    },
+    addArrow: () => {
+      const WIDTH = 250;
+      const HEIGHT = 200;
+
+      const object = new fabric.Polygon(
+        [
+          { x: 0, y: HEIGHT * 0.3 },
+          { x: WIDTH * 0.6, y: HEIGHT * 0.3 },
+          { x: WIDTH * 0.6, y: HEIGHT * 0.1 },
+          { x: WIDTH, y: HEIGHT * 0.5 },
+          { x: WIDTH * 0.6, y: HEIGHT * 0.9 },
+          { x: WIDTH * 0.6, y: HEIGHT * 0.7 },
+          { x: 0, y: HEIGHT * 0.7 },
+        ],
+        {
+          ...ARROW_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+
+      addToCanvas(object);
+    },
+    addLine: () => {
+      const object = new fabric.Line([0, 0, 300, 0], {
+        ...LINE_OPTIONS,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth > 0 ? strokeWidth : 4,
+      });
+
+      addToCanvas(object);
+    },
+    
     toggleEditable: () => {
       const selectedObject = selectedObjects[0];
 

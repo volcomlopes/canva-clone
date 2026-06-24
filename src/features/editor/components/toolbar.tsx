@@ -31,6 +31,9 @@ import {
   SquareStack,
   MoveVertical,
   Spline,
+  Crop,
+  Check,
+  X,
 } from "lucide-react";
 
 
@@ -180,6 +183,43 @@ const onChangeLineHeight = (value: number) => {
     editor?.toggleEditable();
     setProperties((current) => ({ ...current, isEditable: !current.isEditable }));
   };
+
+  // MODO CROP: toolbar troca pra so Aplicar / Cancelar
+  // Dirigido por activeTool (mecanismo confiavel, igual aos outros tools)
+  if (activeTool === "crop") {
+    return (
+      <div className="shrink-0 h-[56px] border-b bg-white w-full flex items-center overflow-x-auto z-[49] p-2 gap-x-2">
+        <div className="flex items-center gap-x-2">
+          <Button
+            onClick={() => {
+              editor?.applyCrop();
+              onChangeActiveTool("select");
+            }}
+            size="sm"
+            className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+          >
+            <Check className="size-4" />
+            Aplicar recorte
+          </Button>
+          <Button
+            onClick={() => {
+              editor?.cancelCrop();
+              onChangeActiveTool("select");
+            }}
+            size="sm"
+            variant="outline"
+            className="gap-2 text-slate-600"
+          >
+            <X className="size-4" />
+            Cancelar
+          </Button>
+          <span className="text-sm text-slate-400 ml-2 hidden sm:inline">
+            Arraste os cantos para definir a area, depois clique em Aplicar.
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   if (editor?.selectedObjects.length === 0) {
     return (
@@ -389,6 +429,22 @@ const onChangeLineHeight = (value: number) => {
               className={cn(activeTool === "filter" && "bg-gray-100")}
             >
               <TbColorFilter className="size-4" />
+            </Button>
+          </Hint>
+        </div>
+      )}
+      {isImage && (
+        <div className="flex items-center h-full justify-center">
+          <Hint label="Cortar imagem" side="bottom" sideOffset={5}>
+            <Button
+              onClick={() => {
+                editor?.startCrop(() => onChangeActiveTool("select"));
+                onChangeActiveTool("crop");
+              }}
+              size="icon"
+              variant="ghost"
+            >
+              <Crop className="size-4" />
             </Button>
           </Hint>
         </div>

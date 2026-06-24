@@ -113,7 +113,8 @@ export type ActiveTool =
   | "ai"
   | "remove-bg"
   | "templates"
-  | "brand-assets";
+  | "brand-assets"
+  | "crop";
 
 export const FILL_COLOR = "rgba(0,0,0,1)";
 export const STROKE_COLOR = "rgba(0,0,0,1)";
@@ -152,6 +153,25 @@ export const DIAMOND_OPTIONS = {
   width: 600,
   height: 600,
   angle: 0,
+};
+
+export const STAR_OPTIONS = {
+  left: 100,
+  top: 100,
+  width: 200,
+  height: 200,
+};
+
+export const ARROW_OPTIONS = {
+  left: 100,
+  top: 100,
+  width: 250,
+  height: 200,
+};
+
+export const LINE_OPTIONS = {
+  left: 100,
+  top: 100,
 };
 
 export const TRIANGLE_OPTIONS = {
@@ -233,6 +253,10 @@ export interface Editor {
   onPaste: () => void;
   changeImageFilter: (value: string) => void;
   addImage: (value: string) => void;
+  startCrop: (onEnd?: () => void) => void;
+  applyCrop: () => void;
+  cancelCrop: () => void;
+  isCropping: () => boolean;
   delete: () => void;
   changeFillRadius: (value: number) => void;
   getActiveFillRadius: () => number;
@@ -279,6 +303,9 @@ export interface Editor {
   addTriangle: () => void;
   addInverseTriangle: () => void;
   addDiamond: () => void;
+  addStar: () => void;
+  addArrow: () => void;
+  addLine: () => void;
   canvas: fabric.Canvas;
   getActiveFillColor: () => string;
   getActiveStrokeColor: () => string;
