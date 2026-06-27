@@ -69,20 +69,93 @@ const buildEditor = ({
   setStrokeDashArray,
 }: BuildEditorProps): Editor => {
 
+// Atualiza as 4 tarjas escuras ao redor da janela de recorte
+  const updateCropOverlay = () => {
+    // @ts-ignore
+    const rect = canvas._cropRect as fabric.Rect | undefined;
+    // @ts-ignore
+    const bounds = canvas._cropBounds as
+      | { left: number; top: number; width: number; height: number }
+      | undefined;
+    // @ts-ignore
+    const shades = canvas._cropShades as fabric.Rect[] | undefined;
+
+    if (!rect || !bounds || !shades || shades.length !== 4) {
+      return;
+    }
+
+    const rLeft = rect.left || 0;
+    const rTop = rect.top || 0;
+    const rW = rect.getScaledWidth();
+    const rH = rect.getScaledHeight();
+
+    const bLeft = bounds.left;
+    const bTop = bounds.top;
+    const bW = bounds.width;
+    const bH = bounds.height;
+
+    const [top, bottom, left, right] = shades;
+
+    // Tarja de cima: cobre da borda superior ate o topo da janela
+    top.set({
+      left: bLeft,
+      top: bTop,
+      width: bW,
+      height: Math.max(0, rTop - bTop),
+    });
+
+    // Tarja de baixo: do fim da janela ate a borda inferior
+    bottom.set({
+      left: bLeft,
+      top: rTop + rH,
+      width: bW,
+      height: Math.max(0, bTop + bH - (rTop + rH)),
+    });
+
+    // Tarja esquerda: so na faixa vertical da janela
+    left.set({
+      left: bLeft,
+      top: rTop,
+      width: Math.max(0, rLeft - bLeft),
+      height: rH,
+    });
+
+    // Tarja direita
+    right.set({
+      left: rLeft + rW,
+      top: rTop,
+      width: Math.max(0, bLeft + bW - (rLeft + rW)),
+      height: rH,
+    });
+
+    shades.forEach((s) => s.setCoords());
+  };
+
   // Aplica o crop de fato (usado pelo botao Aplicar e pelo clicar-fora)
   const editorApplyCrop = () => {
     // @ts-ignore
     const image = canvas._cropTarget as fabric.Image | undefined;
     // @ts-ignore
     const rect = canvas._cropRect as fabric.Rect | undefined;
+    // @ts-ignore
+    const shades = canvas._cropShades as fabric.Rect[] | undefined;
 
-    // Remove o listener de clicar-fora
+    // Remove listeners
     // @ts-ignore
     if (canvas._cropMouseDown) {
       // @ts-ignore
-      canvas.off("mouse:down", canvas._cropMouseDown);
+      canvas.off("mouse:down:before", canvas._cropMouseDown);
       // @ts-ignore
       canvas._cropMouseDown = undefined;
+    }
+    // @ts-ignore
+    if (canvas._cropMoving) {
+      // @ts-ignore
+      canvas.off("object:moving", canvas._cropMoving);
+      // @ts-ignore
+      canvas.off("object:scaling", canvas._cropMoving);
+      // @ts-ignore
+      canvas._cropMoving = undefined;
     }
 
     // @ts-ignore
@@ -90,12 +163,24 @@ const buildEditor = ({
     // @ts-ignore
     canvas._cropOnEnd = undefined;
 
-    if (!image || !rect) {
-      canvas.discardActiveObject();
+    const cleanup = () => {
+      if (rect) canvas.remove(rect);
+      if (shades) shades.forEach((s) => canvas.remove(s));
       // @ts-ignore
       canvas._cropTarget = undefined;
       // @ts-ignore
       canvas._cropRect = undefined;
+      // @ts-ignore
+      canvas._cropShades = undefined;
+      // @ts-ignore
+      canvas._cropBounds = undefined;
+      // @ts-ignore
+      canvas._cropSaved = undefined;
+    };
+
+    if (!image || !rect) {
+      canvas.discardActiveObject();
+      cleanup();
       canvas.requestRenderAll();
       onEnd?.();
       return;
@@ -103,6 +188,8 @@ const buildEditor = ({
 
     const scaleX = image.scaleX || 1;
     const scaleY = image.scaleY || 1;
+
+    // Agora a imagem esta INTEIRA (cropX/Y = 0), entao o calculo eh direto
     const imgLeft = image.left || 0;
     const imgTop = image.top || 0;
 
@@ -111,11 +198,8 @@ const buildEditor = ({
     const rectWidth = rect.getScaledWidth();
     const rectHeight = rect.getScaledHeight();
 
-    const prevCropX = image.cropX || 0;
-    const prevCropY = image.cropY || 0;
-
-    let newCropX = prevCropX + (rectLeft - imgLeft) / scaleX;
-    let newCropY = prevCropY + (rectTop - imgTop) / scaleY;
+    let newCropX = (rectLeft - imgLeft) / scaleX;
+    let newCropY = (rectTop - imgTop) / scaleY;
     let newWidth = rectWidth / scaleX;
     let newHeight = rectHeight / scaleY;
 
@@ -129,14 +213,24 @@ const buildEditor = ({
     if (newCropY + newHeight > naturalH) newHeight = naturalH - newCropY;
 
     canvas.discardActiveObject();
-    canvas.remove(rect);
 
     if (newWidth < 10 || newHeight < 10) {
+      // area minuscula: restaura o crop salvo
+      // @ts-ignore
+      const saved = canvas._cropSaved;
+      if (saved) {
+        image.set({
+          cropX: saved.cropX,
+          cropY: saved.cropY,
+          width: saved.width,
+          height: saved.height,
+          left: saved.left,
+          top: saved.top,
+        });
+      }
       image.set({ selectable: true, evented: true });
-      // @ts-ignore
-      canvas._cropTarget = undefined;
-      // @ts-ignore
-      canvas._cropRect = undefined;
+      image.setCoords();
+      cleanup();
       canvas.setActiveObject(image);
       canvas.requestRenderAll();
       onEnd?.();
@@ -155,10 +249,7 @@ const buildEditor = ({
     });
     image.setCoords();
 
-    // @ts-ignore
-    canvas._cropTarget = undefined;
-    // @ts-ignore
-    canvas._cropRect = undefined;
+    cleanup();
 
     canvas.setActiveObject(image);
     canvas.requestRenderAll();
@@ -387,17 +478,28 @@ const buildEditor = ({
     startCrop: (onEnd?: () => void) => {
       // @ts-ignore
       if (canvas._cropRect) {
-        // limpa um crop anterior que ficou pendente
+        // limpa um crop anterior pendente
         // @ts-ignore
         if (canvas._cropMouseDown) {
           // @ts-ignore
-          canvas.off("mouse:down", canvas._cropMouseDown);
+          canvas.off("mouse:down:before", canvas._cropMouseDown);
           // @ts-ignore
           canvas._cropMouseDown = undefined;
+        }
+        // @ts-ignore
+        if (canvas._cropMoving) {
+          // @ts-ignore
+          canvas.off("object:moving", canvas._cropMoving);
+          // @ts-ignore
+          canvas.off("object:scaling", canvas._cropMoving);
+          // @ts-ignore
+          canvas._cropMoving = undefined;
         }
         canvas.discardActiveObject();
         // @ts-ignore
         canvas.remove(canvas._cropRect);
+        // @ts-ignore
+        (canvas._cropShades || []).forEach((s: fabric.Rect) => canvas.remove(s));
         // @ts-ignore
         if (canvas._cropTarget) {
           // @ts-ignore
@@ -405,6 +507,10 @@ const buildEditor = ({
         }
         // @ts-ignore
         canvas._cropRect = undefined;
+        // @ts-ignore
+        canvas._cropShades = undefined;
+        // @ts-ignore
+        canvas._cropBounds = undefined;
         // @ts-ignore
         canvas._cropTarget = undefined;
         // @ts-ignore
@@ -417,21 +523,88 @@ const buildEditor = ({
         return;
       }
 
+      // Estado atual do crop (pra restaurar no cancel)
+      const savedCrop = {
+        cropX: image.cropX || 0,
+        cropY: image.cropY || 0,
+        width: image.width || 0,
+        height: image.height || 0,
+        left: image.left || 0,
+        top: image.top || 0,
+      };
+      // @ts-ignore
+      canvas._cropSaved = savedCrop;
+
+      const scaleX = image.scaleX || 1;
+      const scaleY = image.scaleY || 1;
+
+      const element = image.getElement() as HTMLImageElement;
+      const naturalW = element.naturalWidth || image.width || 0;
+      const naturalH = element.naturalHeight || image.height || 0;
+
+      // A janela de recorte atual (onde a imagem esta hoje, na tela)
+      const windowLeft = image.left || 0;
+      const windowTop = image.top || 0;
+      const windowW = image.getScaledWidth();
+      const windowH = image.getScaledHeight();
+
+      // Revela a imagem ORIGINAL inteira por baixo:
+      // tira o crop e reposiciona pra borda da janela continuar no mesmo lugar
+      const fullLeft = windowLeft - (image.cropX || 0) * scaleX;
+      const fullTop = windowTop - (image.cropY || 0) * scaleY;
+
       image.set({
+        cropX: 0,
+        cropY: 0,
+        width: naturalW,
+        height: naturalH,
+        left: fullLeft,
+        top: fullTop,
         selectable: false,
         evented: false,
       });
+      image.setCoords();
 
-      const imgLeft = image.left || 0;
-      const imgTop = image.top || 0;
-      const imgWidth = image.getScaledWidth();
-      const imgHeight = image.getScaledHeight();
+      // Limites da imagem inteira na tela (onde o escuro pode existir)
+      const boundsLeft = fullLeft;
+      const boundsTop = fullTop;
+      const boundsWidth = naturalW * scaleX;
+      const boundsHeight = naturalH * scaleY;
 
+      // @ts-ignore
+      canvas._cropBounds = {
+        left: boundsLeft,
+        top: boundsTop,
+        width: boundsWidth,
+        height: boundsHeight,
+      };
+
+      // 4 tarjas escuras
+      const makeShade = () =>
+        new fabric.Rect({
+          left: 0,
+          top: 0,
+          width: 0,
+          height: 0,
+          fill: "rgba(0,0,0,0.55)",
+          selectable: false,
+          evented: false,
+          objectCaching: false,
+          excludeFromExport: true,
+          hoverCursor: "default",
+        });
+
+      const shades = [makeShade(), makeShade(), makeShade(), makeShade()];
+      shades.forEach((s) => canvas.add(s));
+      // @ts-ignore
+      canvas._cropShades = shades;
+
+      // Retangulo de recorte (a janela), comeca onde a imagem estava antes
       const rect = new fabric.Rect({
-        left: imgLeft,
-        top: imgTop,
-        width: imgWidth,
-        height: imgHeight,
+        left: windowLeft,
+        top: windowTop,
+        width: windowW,
+        height: windowH,
         fill: "rgba(0,0,0,0.0)",
         stroke: "#3b82f6",
         strokeWidth: 2,
@@ -461,6 +634,9 @@ const buildEditor = ({
 
       // @ts-ignore
       canvas._cropTarget = image;
+      // Marca como rect de recorte pra o radius nunca grudar nele
+      // @ts-ignore
+      rect._isCropRect = true;
       // @ts-ignore
       canvas._cropRect = rect;
       // @ts-ignore
@@ -469,11 +645,21 @@ const buildEditor = ({
       canvas.add(rect);
       canvas.setActiveObject(rect);
 
-      // Clicar FORA do quadrado de recorte aplica o crop (igual Canva/PowerPoint)
+      updateCropOverlay();
+
+      // Atualiza o escuro em tempo real ao arrastar/redimensionar a janela
+      const onMoving = () => {
+        updateCropOverlay();
+      };
+      // @ts-ignore
+      canvas._cropMoving = onMoving;
+      canvas.on("object:moving", onMoving);
+      canvas.on("object:scaling", onMoving);
+
+      // Clicar fora aplica
       const onMouseDown = (opt: fabric.IEvent) => {
         // @ts-ignore
         if (!canvas._cropTarget || !canvas._cropRect) return;
-        // Clicou no proprio quadrado (ou nas alcas dele): nao aplica, deixa ajustar
         // @ts-ignore
         if (opt.target === canvas._cropRect) return;
         editorApplyCrop();
@@ -492,13 +678,26 @@ const buildEditor = ({
       const image = canvas._cropTarget as fabric.Image | undefined;
       // @ts-ignore
       const rect = canvas._cropRect as fabric.Rect | undefined;
+      // @ts-ignore
+      const shades = canvas._cropShades as fabric.Rect[] | undefined;
+      // @ts-ignore
+      const saved = canvas._cropSaved;
 
       // @ts-ignore
       if (canvas._cropMouseDown) {
         // @ts-ignore
-        canvas.off("mouse:down", canvas._cropMouseDown);
+        canvas.off("mouse:down:before", canvas._cropMouseDown);
         // @ts-ignore
         canvas._cropMouseDown = undefined;
+      }
+      // @ts-ignore
+      if (canvas._cropMoving) {
+        // @ts-ignore
+        canvas.off("object:moving", canvas._cropMoving);
+        // @ts-ignore
+        canvas.off("object:scaling", canvas._cropMoving);
+        // @ts-ignore
+        canvas._cropMoving = undefined;
       }
 
       // @ts-ignore
@@ -508,12 +707,22 @@ const buildEditor = ({
 
       canvas.discardActiveObject();
 
-      if (rect) {
-        canvas.remove(rect);
-      }
+      if (rect) canvas.remove(rect);
+      if (shades) shades.forEach((s) => canvas.remove(s));
 
-      if (image) {
-        image.set({ selectable: true, evented: true });
+      // Restaura o crop que existia antes
+      if (image && saved) {
+        image.set({
+          cropX: saved.cropX,
+          cropY: saved.cropY,
+          width: saved.width,
+          height: saved.height,
+          left: saved.left,
+          top: saved.top,
+          selectable: true,
+          evented: true,
+        });
+        image.setCoords();
         canvas.setActiveObject(image);
       }
 
@@ -521,6 +730,12 @@ const buildEditor = ({
       canvas._cropTarget = undefined;
       // @ts-ignore
       canvas._cropRect = undefined;
+      // @ts-ignore
+      canvas._cropShades = undefined;
+      // @ts-ignore
+      canvas._cropBounds = undefined;
+      // @ts-ignore
+      canvas._cropSaved = undefined;
 
       canvas.requestRenderAll();
       onEnd?.();

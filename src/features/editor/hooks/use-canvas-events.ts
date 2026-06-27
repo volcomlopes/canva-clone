@@ -124,7 +124,8 @@ export const useCanvasEvents = ({
         const selected = e.selected || [];
         setSelectedObjects(selected);
         selected.forEach((obj) => {
-          if (obj.type === "rect") {
+          // @ts-ignore - ignora o retangulo de recorte do crop
+          if (obj.type === "rect" && !obj._isCropRect) {
             applyCornerRadiusControls(obj as fabric.Rect);
           }
         });
@@ -134,7 +135,8 @@ export const useCanvasEvents = ({
         const selected = e.selected || [];
         setSelectedObjects(selected);
         selected.forEach((obj) => {
-          if (obj.type === "rect") {
+          // @ts-ignore - ignora o retangulo de recorte do crop
+          if (obj.type === "rect" && !obj._isCropRect) {
             applyCornerRadiusControls(obj as fabric.Rect);
           }
         });
