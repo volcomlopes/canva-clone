@@ -11,9 +11,9 @@ interface SaveTemplateArgs {
   name?: string;
   targetTemplateId?: string;
   thumbnailDataUrl?: string;
+  categoryId?: string | null;
 }
 
-// Converte dataURL em File pra upload
 const dataUrlToFile = async function (dataUrl: string, filename: string): Promise<File> {
   const response = await fetch(dataUrl);
   const blob = await response.blob();
@@ -27,7 +27,6 @@ export const useSaveAsTemplate = (projectId: string) => {
     mutationFn: async function (args: SaveTemplateArgs) {
       let thumbnailUrl: string | undefined;
 
-      // 1. Se veio dataURL do thumbnail, faz upload primeiro
       if (args.thumbnailDataUrl) {
         try {
           const file = await dataUrlToFile(
@@ -43,12 +42,10 @@ export const useSaveAsTemplate = (projectId: string) => {
             thumbnailUrl = uploadResult[0].url;
           }
         } catch (error) {
-          // Se upload falhar, segue sem thumbnail (nao bloqueia o save)
           console.warn("Falha no upload do thumbnail:", error);
         }
       }
 
-      // 2. Faz o save-as-template com a URL do thumbnail (se conseguiu)
       const response = await fetch(
         `/api/projects/${projectId}/save-as-template`,
         {
@@ -61,6 +58,7 @@ export const useSaveAsTemplate = (projectId: string) => {
             name: args.name,
             targetTemplateId: args.targetTemplateId,
             thumbnailUrl: thumbnailUrl,
+            categoryId: args.categoryId ?? null,
           }),
         }
       );

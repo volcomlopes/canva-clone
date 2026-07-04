@@ -386,6 +386,7 @@ const app = new Hono()
         mode?: "create" | "update";
         targetTemplateId?: string;
         thumbnailUrl?: string;
+        categoryId?: string | null;
       };
       try {
         body = await c.req.json();
@@ -510,6 +511,7 @@ const app = new Hono()
           isTemplate: true,
           isPro: false,
           templateVisibility: visibility,
+          templateCategoryId: body.categoryId ?? null,
           createdAt: new Date(),
           updatedAt: new Date(),
         })

@@ -15,6 +15,13 @@
       "when": 1778959944394,
       "tag": "0001_bright_ironclad",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783191554089,
+      "tag": "0002_sudden_riptide",
+      "breakpoints": true
     }
   ]
 }

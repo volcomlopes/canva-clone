@@ -1,17 +1,27 @@
 "use client";
 
 import Image from "next/image";
-import { Crown, MoreHorizontal, Trash, Pencil } from "lucide-react";
+import { Crown, MoreHorizontal, Trash, Pencil, FolderInput, Check } from "lucide-react";
 
 import {
   DropdownMenuContent,
   DropdownMenu,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 
 import { cn } from "@/lib/utils";
+
+interface TemplateFolder {
+  id: string;
+  name: string;
+};
 
 interface TemplateCardProps {
   imageSrc: string;
@@ -25,6 +35,9 @@ interface TemplateCardProps {
   canManage?: boolean;
   onDelete?: () => void;
   onRename?: () => void;
+  folders?: TemplateFolder[];
+  currentCategoryId?: string | null;
+  onMove?: (categoryId: string | null) => void;
 };
 
 export const TemplateCard = ({
@@ -39,6 +52,9 @@ export const TemplateCard = ({
   canManage,
   onDelete,
   onRename,
+  folders,
+  currentCategoryId,
+  onMove,
 }: TemplateCardProps) => {
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -54,6 +70,13 @@ export const TemplateCard = ({
     e.stopPropagation();
   };
 
+  const handleMoveClick = (e: React.MouseEvent, categoryId: string | null) => {
+    e.stopPropagation();
+    onMove?.(categoryId);
+  };
+
+  const showMove = !!onMove;
+
   return (
     <div
       className={cn(
@@ -61,7 +84,6 @@ export const TemplateCard = ({
         disabled ? "cursor-not-allowed opacity-75" : ""
       )}
     >
-      {/* Container com proporcao fixa 4:3 */}
       <div className="relative rounded-xl w-full overflow-hidden border bg-slate-100 aspect-[3/4]">
         <button
           type="button"
@@ -72,7 +94,6 @@ export const TemplateCard = ({
             disabled ? "cursor-not-allowed" : "cursor-pointer"
           )}
         >
-          {/* Imagem com object-contain - encaixa SEM cortar */}
           {imageSrc ? (
             <Image
               fill
@@ -118,6 +139,51 @@ export const TemplateCard = ({
                   <Pencil className="size-4 mr-2" />
                   Renomear
                 </DropdownMenuItem>
+
+                {showMove && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="cursor-pointer">
+                      <FolderInput className="size-4 mr-2" />
+                      Mover para pasta
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent className="w-52">
+                        <DropdownMenuItem
+                          className="cursor-pointer"
+                          onClick={(e) => handleMoveClick(e, null)}
+                        >
+                          {currentCategoryId == null && (
+                            <Check className="size-4 mr-2" />
+                          )}
+                          <span className={currentCategoryId == null ? "" : "ml-6"}>
+                            Sem categoria
+                          </span>
+                        </DropdownMenuItem>
+
+                        {folders && folders.length > 0 && (
+                          <DropdownMenuSeparator />
+                        )}
+
+                        {folders?.map((folder) => {
+                          const active = currentCategoryId === folder.id;
+                          return (
+                            <DropdownMenuItem
+                              key={folder.id}
+                              className="cursor-pointer"
+                              onClick={(e) => handleMoveClick(e, folder.id)}
+                            >
+                              {active && <Check className="size-4 mr-2" />}
+                              <span className={active ? "truncate" : "ml-6 truncate"}>
+                                {folder.name}
+                              </span>
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+                )}
+
                 <DropdownMenuItem
                   className="cursor-pointer text-red-600 focus:text-red-700 focus:bg-red-50"
                   onClick={handleDeleteClick}

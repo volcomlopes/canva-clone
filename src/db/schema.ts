@@ -118,6 +118,32 @@ export const brandAssets = pgTable("brandAsset", {
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 });
 
+// ============================================
+// TEMPLATE CATEGORIES - Pastas de organizacao de templates
+// ============================================
+export const templateCategories = pgTable("templateCategory", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  brandId: text("brandId")
+    .notNull()
+    .references(() => brands.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const templateCategoriesRelations = relations(
+  templateCategories,
+  ({ one, many }) => ({
+    brand: one(brands, {
+      fields: [templateCategories.brandId],
+      references: [brands.id],
+    }),
+    templates: many(projects),
+  })
+);
 
 // ============================================
 // RELACIONAMENTOS
@@ -244,6 +270,7 @@ export const projects = pgTable("project", {
   templateVisibility: text("templateVisibility").default("personal"),
   sourceTemplateId: text("sourceTemplateId"),
   templateChildId: text("templateChildId"),
+  templateCategoryId: text("templateCategoryId"),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull(),
 });
