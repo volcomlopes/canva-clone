@@ -31,7 +31,7 @@ import {
   LINE_OPTIONS,
   STAR_OPTIONS,
   ARROW_OPTIONS,
-} from "@/features/editor/types";
+} from "@/features/editor/types"; 
 import { useHistory } from "@/features/editor/hooks/use-history";
 import {
   createFilter,
@@ -39,6 +39,13 @@ import {
   isTextType,
   transformText
 } from "@/features/editor/utils";
+import {
+  migrateToV2,
+  getFirstPageId,
+  setPageJson,
+  serializeDocument,
+  type EditorDocumentV2,
+} from "@/features/editor/utils/pages";
 import { useHotkeys } from "@/features/editor/hooks/use-hotkeys";
 import { useClipboard } from "@/features/editor/hooks//use-clipboard";
 import { useAutoResize } from "@/features/editor/hooks/use-auto-resize";
@@ -67,6 +74,10 @@ const buildEditor = ({
   selectedObjects,
   strokeDashArray,
   setStrokeDashArray,
+  documentRef,
+  activePageIdRef,
+  setPages,
+  setActivePageId,
 }: BuildEditorProps): Editor => {
 
 // Atualiza as 4 tarjas escuras ao redor da janela de recorte
@@ -258,7 +269,12 @@ const buildEditor = ({
   };
 
   const generateSaveOptions = () => {
-    const { width, height, left, top } = getWorkspace() as fabric.Rect;
+    const workspace = getWorkspace() as fabric.Rect | undefined;
+
+    const width = workspace?.width ?? 1080;
+    const height = workspace?.height ?? 1080;
+    const left = workspace?.left ?? 0;
+    const top = workspace?.top ?? 0;
 
     return {
       name: "Image",
@@ -282,7 +298,7 @@ const buildEditor = ({
   };
 
   const savePdf = (dpi: "screen" | "print" = "screen") => {
-    const workspace = getWorkspace() as fabric.Rect;
+    const workspace = getWorkspace() as fabric.Rect | undefined;
     const width = workspace?.width || 1080;
     const height = workspace?.height || 1080;
 
@@ -294,8 +310,8 @@ const buildEditor = ({
     const dataUrl = canvas.toDataURL({
       width: width,
       height: height,
-      left: workspace.left,
-      top: workspace.top,
+      left: workspace?.left ?? 0,
+      top: workspace?.top ?? 0,
       format: "jpeg",
       quality: 1,
       multiplier: multiplier,
@@ -323,9 +339,9 @@ const buildEditor = ({
     // Limita o thumbnail a 800px na maior dimensao pra evitar
     // arquivos grandes que estouram o limite de upload (2MB)
     const MAX_THUMB_DIMENSION = 800;
-    const workspace = getWorkspace() as fabric.Rect;
-    const wsWidth = workspace.width || 1080;
-    const wsHeight = workspace.height || 1080;
+    const workspace = getWorkspace() as fabric.Rect | undefined;
+    const wsWidth = workspace?.width || 1080;
+    const wsHeight = workspace?.height || 1080;
     const largerSide = Math.max(wsWidth, wsHeight);
 
     let multiplier = 1;
@@ -403,6 +419,84 @@ const buildEditor = ({
   };
 
   return {
+    // ===== MULTIPAGINA (Slides 2) =====
+    getPages: () => {
+      return documentRef.current.pages.map((p: any) => ({ id: p.id }));
+    },
+    getActivePageId: () => {
+      return activePageIdRef.current;
+    },
+    // Sincroniza o canvas atual no documento (regra de ouro - Opcao 1)
+    syncActivePage: () => {
+      const currentJson = canvas.toJSON(JSON_KEYS);
+      const pages = documentRef.current.pages.map((p: any) =>
+        p.id === activePageIdRef.current ? { ...p, json: currentJson } : p
+      );
+      documentRef.current = { ...documentRef.current, pages };
+    },
+    goToPage: (pageId: string) => {
+      if (pageId === activePageIdRef.current) return;
+
+      // 1. Salva o canvas atual no slot da pagina que sai (regra de ouro)
+      const currentJson = canvas.toJSON(JSON_KEYS);
+      const syncedPages = documentRef.current.pages.map((p: any) =>
+        p.id === activePageIdRef.current ? { ...p, json: currentJson } : p
+      );
+      documentRef.current = { ...documentRef.current, pages: syncedPages };
+
+      // 2. Acha a pagina que entra
+      const target = documentRef.current.pages.find(
+        (p: any) => p.id === pageId
+      );
+      if (!target) return;
+
+      // 3. Troca a pagina ativa
+      activePageIdRef.current = pageId;
+      setActivePageId(pageId);
+
+      // 4. Carrega o json da pagina que entra no canvas
+      canvas.loadFromJSON(target.json || {}, () => {
+        autoZoom();
+        save();
+      });
+    },
+    addPage: () => {
+      // 1. Salva a pagina atual antes de criar a nova
+      const currentJson = canvas.toJSON(JSON_KEYS);
+      const syncedPages = documentRef.current.pages.map((p: any) =>
+        p.id === activePageIdRef.current ? { ...p, json: currentJson } : p
+      );
+
+      // 2. Cria a pagina nova (vazia - so o workspace sera criado ao carregar)
+      const newId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `page-${Date.now()}`;
+
+      // A pagina nova comeca com o mesmo workspace (mesa branca) da atual,
+      // mas sem os outros objetos. Pega o clip atual como base.
+      const clip = canvas
+        .getObjects()
+        .find((o: any) => o.name === "clip");
+      const emptyPageJson = clip
+        ? { version: "5.3.0", objects: [clip.toObject(JSON_KEYS)] }
+        : {};
+
+      const newPage = { id: newId, json: emptyPageJson };
+      const newPages = [...syncedPages, newPage];
+      documentRef.current = { ...documentRef.current, pages: newPages };
+
+      // 3. Atualiza estado da UI
+      setPages(newPages.map((p: any) => ({ id: p.id })));
+
+      // 4. Vai pra pagina nova
+      activePageIdRef.current = newId;
+      setActivePageId(newId);
+      canvas.loadFromJSON(emptyPageJson, () => {
+        autoZoom();
+        save();
+      });
+    },
     savePng,
     saveJpg,
     saveSvg,
@@ -1693,6 +1787,68 @@ export const useEditor = ({
 
   useWindowEvents();
 
+// ============================================
+  // MULTIPAGINA (Slides 1 - parte 2)
+  // Documento version 2 em memoria: guarda TODAS as paginas.
+  // O canvas mostra a pagina ativa; ao salvar, sincroniza a ativa
+  // no documento e persiste o documento inteiro no banco.
+  // ============================================
+  const initialDocument = useRef<EditorDocumentV2>(migrateToV2(defaultState));
+  const documentRef = useRef<EditorDocumentV2>(initialDocument.current);
+  const activePageIdRef = useRef<string>(
+    getFirstPageId(initialDocument.current)
+  );
+
+  // Estado React espelhando as paginas (pra UI reagir a mudancas)
+  const [pages, setPages] = useState<{ id: string }[]>(
+    initialDocument.current.pages.map((p) => ({ id: p.id }))
+  );
+  const [activePageId, setActivePageId] = useState<string>(
+    getFirstPageId(initialDocument.current)
+  );
+
+  // Embrulha o saveCallback: intercepta o json do canvas atual,
+  // atualiza o slot da pagina ativa, e manda o documento v2 inteiro.
+  const wrappedSaveCallback = useCallback(
+    (values: { json: string; height: number; width: number }) => {
+      if (!saveCallback) return;
+
+      let pageJson: any = {};
+      try {
+        pageJson = JSON.parse(values.json);
+      } catch {
+        pageJson = {};
+      }
+
+      // GUARDA: so salva se o estado tem o workspace (clip).
+      // Se nao tem, o canvas esta num momento intermediario
+      // (carregando/limpo) - salvar aqui corromperia a pagina.
+      const hasWorkspace =
+        pageJson &&
+        Array.isArray(pageJson.objects) &&
+        pageJson.objects.some((obj: any) => obj && obj.name === "clip");
+
+      if (!hasWorkspace) {
+        return;
+      }
+
+      // Sincroniza a pagina ativa no documento (regra de ouro)
+      documentRef.current = setPageJson(
+        documentRef.current,
+        activePageIdRef.current,
+        pageJson
+      );
+
+      // Persiste o documento v2 inteiro (todas as paginas)
+      saveCallback({
+        json: serializeDocument(documentRef.current),
+        height: values.height,
+        width: values.width,
+      });
+    },
+    [saveCallback]
+  );
+
   const {
     save,
     canRedo,
@@ -1703,7 +1859,7 @@ export const useEditor = ({
     setHistoryIndex,
   } = useHistory({
     canvas,
-    saveCallback
+    saveCallback: wrappedSaveCallback
   });
 
   const { copy, paste } = useClipboard({ canvas });
@@ -1760,6 +1916,10 @@ export const useEditor = ({
         setStrokeDashArray,
         fontFamily,
         setFontFamily,
+        documentRef,
+        activePageIdRef,
+        setPages,
+        setActivePageId,
       });
     }
 

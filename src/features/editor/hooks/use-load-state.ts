@@ -2,6 +2,11 @@ import { fabric } from "fabric";
 import { useEffect, useRef } from "react";
 
 import { JSON_KEYS } from "@/features/editor/types";
+import {
+  migrateToV2,
+  getFirstPageId,
+  getPageJson,
+} from "@/features/editor/utils/pages";
 
 interface UseLoadStateProps {
   autoZoom: () => void;
@@ -22,9 +27,12 @@ export const useLoadState = ({
 
   useEffect(() => {
     if (!initialized.current && initialState?.current && canvas) {
-      const data = JSON.parse(initialState.current);
+      // Migracao lazy: aceita formato antigo (1 tela) OU version 2 (paginas)
+      const doc = migrateToV2(initialState.current);
+      const firstPageId = getFirstPageId(doc);
+      const pageJson = getPageJson(doc, firstPageId) ?? {};
 
-      canvas.loadFromJSON(data, () => {
+      canvas.loadFromJSON(pageJson, () => {
         const currentState = JSON.stringify(
           canvas.toJSON(JSON_KEYS),
         );
@@ -35,12 +43,12 @@ export const useLoadState = ({
       });
       initialized.current = true;
     }
-  }, 
+  },
   [
     canvas,
     autoZoom,
-    initialState, // no need, this is a ref
-    canvasHistory, // no need, this is a ref
-    setHistoryIndex, // no need, this is a dispatch
+    initialState,
+    canvasHistory,
+    setHistoryIndex,
   ]);
 };

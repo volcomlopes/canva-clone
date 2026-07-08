@@ -1,6 +1,7 @@
 import { fabric } from "fabric";
 import { ITextboxOptions } from "fabric/fabric-impl";
 import * as material from "material-colors";
+import type React from "react";
 
 export const JSON_KEYS = [
   "name",
@@ -227,9 +228,19 @@ export type BuildEditorProps = {
   setStrokeColor: (value: string) => void;
   setStrokeWidth: (value: number) => void;
   setFontFamily: (value: string) => void;
+  // Multipagina (Slides 2)
+  documentRef: React.MutableRefObject<any>;
+  activePageIdRef: React.MutableRefObject<string>;
+  setPages: React.Dispatch<React.SetStateAction<{ id: string }[]>>;
+  setActivePageId: React.Dispatch<React.SetStateAction<string>>;
 };
 
 export interface Editor {
+  getPages: () => { id: string }[];
+  getActivePageId: () => string;
+  syncActivePage: () => void;
+  goToPage: (pageId: string) => void;
+  addPage: () => void;
   savePng: () => void;
   saveJpg: () => void;
   saveSvg: () => void;

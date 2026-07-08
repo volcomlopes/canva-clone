@@ -23,6 +23,12 @@ export const useAutoResize = ({ canvas, container }: UseAutoResizeProps) => {
       .getObjects()
       .find((object) => object.name === "clip");
 
+    // Protecao: se ainda nao ha workspace (canvas carregando ou estado
+    // sem clip), nao tenta calcular escala - so sai sem quebrar.
+    if (!localWorkspace) {
+      return;
+    }
+
     // @ts-ignore
     const scale = fabric.util.findScaleToFit(localWorkspace, {
       width: width,
@@ -33,8 +39,6 @@ export const useAutoResize = ({ canvas, container }: UseAutoResizeProps) => {
 
     canvas.setViewportTransform(fabric.iMatrix.concat());
     canvas.zoomToPoint(new fabric.Point(center.left, center.top), zoom);
-
-    if (!localWorkspace) return;
 
     const workspaceCenter = localWorkspace.getCenterPoint();
     const viewportTransform = canvas.viewportTransform;

@@ -284,6 +284,10 @@ export const projectsRelations = relations(projects, ({ one }) => ({
     fields: [projects.brandId],
     references: [brands.id],
   }),
+  templateCategory: one(templateCategories, {
+    fields: [projects.templateCategoryId],
+    references: [templateCategories.id],
+  }),
 }));
 
 export const projectsInsertSchema = createInsertSchema(projects);
