@@ -75,6 +75,7 @@ export const Navbar = ({
   const [modalView, setModalView] = useState("choice" as ModalView);
   const [templateName, setTemplateName] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(NO_CATEGORY);
+  const [pagesLocked, setPagesLocked] = useState(false);
 
   const { data: project } = useGetProject(id);
   const { data: brandSettings } = useGetBrandSettings();
@@ -93,6 +94,8 @@ export const Navbar = ({
   // @ts-ignore - userId existe no endpoint
   const currentUserId = brandSettings?.userId;
   const isAdmin = userRole === "brand_admin" || userRole === "super_admin";
+  const pageCount = editor?.getPages().length || 1;
+  const isMultiPage = pageCount > 1;
 
   const canUpdateLinkedTemplate = (() => {
     if (childTemplateId) return true;
@@ -156,8 +159,8 @@ export const Navbar = ({
     setModalOpen(true);
   };
 
-  const handleUpdateExisting = () => {
-    const thumbnailDataUrl = editor?.generateThumbnail();
+  const handleUpdateExisting = async () => {
+    const thumbnailDataUrl = await editor?.generateCoverThumbnail();
 
     saveAsTemplate.mutate(
       {
@@ -180,11 +183,11 @@ export const Navbar = ({
     setModalView("name");
   };
 
-  const handleConfirmCreate = () => {
+  const handleConfirmCreate = async () => {
     const trimmed = templateName.trim();
     if (!trimmed) return;
 
-    const thumbnailDataUrl = editor?.generateThumbnail();
+    const thumbnailDataUrl = await editor?.generateCoverThumbnail();
     const categoryId =
       selectedCategory === NO_CATEGORY ? null : selectedCategory;
 
@@ -194,6 +197,7 @@ export const Navbar = ({
         name: trimmed,
         thumbnailDataUrl: thumbnailDataUrl,
         categoryId: categoryId,
+        pagesLocked: pagesLocked,
       },
       {
         onSuccess: () => {
@@ -209,6 +213,7 @@ export const Navbar = ({
     setModalOpen(false);
     setTemplateName("");
     setSelectedCategory(NO_CATEGORY);
+    setPagesLocked(false);
     setModalView("choice");
   };
 
@@ -343,6 +348,27 @@ export const Navbar = ({
                     Escolha onde o template ficara guardado.
                   </p>
                 </div>
+
+                {isMultiPage && isAdmin && (
+                  <div className="flex items-start gap-3 rounded-lg border border-slate-200 p-3">
+                    <input
+                      type="checkbox"
+                      id="pages-locked"
+                      checked={pagesLocked}
+                      onChange={(e) => setPagesLocked(e.target.checked)}
+                      className="mt-0.5 size-4 cursor-pointer"
+                    />
+                    <label htmlFor="pages-locked" className="cursor-pointer">
+                      <p className="text-sm font-medium text-slate-900">
+                        Bloquear estrutura de paginas
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Impede adicionar, remover, duplicar ou reordenar paginas
+                        ao editar este template. O conteudo editavel continua livre.
+                      </p>
+                    </label>
+                  </div>
+                )}
               </div>
 
               <DialogFooter>

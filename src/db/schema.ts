@@ -271,6 +271,7 @@ export const projects = pgTable("project", {
   sourceTemplateId: text("sourceTemplateId"),
   templateChildId: text("templateChildId"),
   templateCategoryId: text("templateCategoryId"),
+  pagesLocked: boolean("pagesLocked").default(false),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull(),
 });

@@ -7,11 +7,11 @@ import { auth } from "@/auth";
 import { db } from "@/db/drizzle";
 import { templateCategories, projects } from "@/db/schema";
 
-// Roles que podem gerenciar pastas de template.
+// Roles que podem GERENCIAR pastas (criar/renomear/excluir/mover).
 // Pra liberar dealership_admin no futuro: adicione "dealership_admin" aqui.
 const ALLOWED_ROLES = ["brand_admin", "super_admin"];
 
-// Resolve o brandId do usuario logado e valida permissao.
+// Contexto pra GERENCIAR: exige role de admin.
 async function getBrandContext() {
   const session = await auth();
 
@@ -27,11 +27,28 @@ async function getBrandContext() {
   return { brandId };
 }
 
+// Contexto pra LER: qualquer usuario com brandId (inclui vendedor).
+// Ver as pastas ajuda a se localizar; nao permite gerenciar.
+async function getReadContext() {
+  const session = await auth();
+
+  if (!session?.user) {
+    return { error: "Acesso negado" as const };
+  }
+
+  const brandId = session.user.brandId;
+  if (!brandId) {
+    return { error: "Marca nao identificada" as const };
+  }
+
+  return { brandId };
+}
+
 // ============================================
 // LISTAR pastas da marca (com contagem de templates)
 // ============================================
 export async function listTemplateCategories() {
-  const ctx = await getBrandContext();
+  const ctx = await getReadContext();
   if ("error" in ctx) return ctx;
 
   const categories = await db

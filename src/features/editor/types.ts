@@ -233,6 +233,9 @@ export type BuildEditorProps = {
   activePageIdRef: React.MutableRefObject<string>;
   setPages: React.Dispatch<React.SetStateAction<{ id: string }[]>>;
   setActivePageId: React.Dispatch<React.SetStateAction<string>>;
+  pageThumbsRef: React.MutableRefObject<Record<string, string>>;
+  setThumbsVersion: React.Dispatch<React.SetStateAction<number>>;
+  isExportingRef: React.MutableRefObject<boolean>;
 };
 
 export interface Editor {
@@ -241,6 +244,11 @@ export interface Editor {
   syncActivePage: () => void;
   goToPage: (pageId: string) => void;
   addPage: () => void;
+  duplicatePage: (pageId: string) => void;
+  deletePage: (pageId: string) => void;
+  movePage: (pageId: string, direction: "left" | "right") => void;
+  getPageThumb: (pageId: string) => string | null;
+  generateCoverThumbnail: () => Promise<string | undefined>;
   savePng: () => void;
   saveJpg: () => void;
   saveSvg: () => void;

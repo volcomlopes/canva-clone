@@ -115,6 +115,14 @@ export const Editor = ({ initialData }: EditorProps) => {
   }
 
   useSellerMode(editor?.canvas || null, shouldRestrict);
+  // Trava de estrutura de paginas: so trava se o template tem pagesLocked,
+  // estamos em modo restrito, E o usuario NAO e admin.
+  // Admin nunca fica travado nas paginas - ele gerencia os templates.
+  const sourcePagesLocked = !!sourceTemplateAny?.pagesLocked;
+  const currentUserRole = (brandSettingsForRestrict as any)?.userRole;
+  const isPageAdmin =
+    currentUserRole === "brand_admin" || currentUserRole === "super_admin";
+  const lockPages = shouldRestrict && sourcePagesLocked && !isPageAdmin;
 
   // Linhas-guia + snap entre elementos (todos os usuarios)
   useSnapGuides(editor?.canvas || null);
@@ -274,7 +282,7 @@ export const Editor = ({ initialData }: EditorProps) => {
           <div className="flex-1 min-h-0 bg-muted" ref={containerRef}>
             <canvas ref={canvasRef} />
           </div>
-          <Footer editor={editor} />
+          <Footer editor={editor} lockPages={lockPages} />
         </main>
       </div>
     </div>

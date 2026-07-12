@@ -293,23 +293,43 @@ const app = new Hono()
         return c.json({ error: "Unauthorized" }, 401);
       }
 
-      const data = await db
+      // Busca o brandId do usuario logado
+      const [dbUser] = await db
+        .select({ brandId: users.brandId })
+        .from(users)
+        .where(eq(users.id, auth.token.id as string))
+        .limit(1);
+
+      // Busca o projeto pelo id
+      const [target] = await db
         .select()
         .from(projects)
-        .where(
-          and(
-            eq(projects.id, id),
-            eq(projects.userId, auth.token.id)
-          )
-        );
+        .where(eq(projects.id, id))
+        .limit(1);
 
-      if (data.length === 0) {
+      if (!target) {
         return c.json({ error: "Not found" }, 404);
       }
 
-      return c.json({ data: data[0] });
+      const isOwner = target.userId === auth.token.id;
+
+      // Template oficial da MESMA marca: pode ler (mesmo nao sendo dono).
+      // Isso permite ao vendedor ler metadados do template de origem
+      // (ex: pagesLocked) sem poder edita-lo.
+      const isOfficialSameBrand =
+        target.isTemplate === true &&
+        target.templateVisibility === "official" &&
+        !!target.brandId &&
+        target.brandId === dbUser?.brandId;
+
+      if (!isOwner && !isOfficialSameBrand) {
+        return c.json({ error: "Not found" }, 404);
+      }
+
+      return c.json({ data: target });
     },
   )
+  
   .post(
     "/",
     verifyAuth(),
@@ -387,6 +407,7 @@ const app = new Hono()
         targetTemplateId?: string;
         thumbnailUrl?: string;
         categoryId?: string | null;
+        pagesLocked?: boolean;
       };
       try {
         body = await c.req.json();
@@ -478,6 +499,7 @@ const app = new Hono()
             width: project.width,
             height: project.height,
             thumbnailUrl: body.thumbnailUrl || project.thumbnailUrl,
+            pagesLocked: body.pagesLocked ?? false,
             updatedAt: new Date(),
           })
           .where(eq(projects.id, targetId))
@@ -512,6 +534,7 @@ const app = new Hono()
           isPro: false,
           templateVisibility: visibility,
           templateCategoryId: body.categoryId ?? null,
+          pagesLocked: body.pagesLocked ?? false,
           createdAt: new Date(),
           updatedAt: new Date(),
         })

@@ -12,6 +12,7 @@ interface SaveTemplateArgs {
   targetTemplateId?: string;
   thumbnailDataUrl?: string;
   categoryId?: string | null;
+  pagesLocked?: boolean;
 }
 
 const dataUrlToFile = async function (dataUrl: string, filename: string): Promise<File> {
@@ -59,6 +60,7 @@ export const useSaveAsTemplate = (projectId: string) => {
             targetTemplateId: args.targetTemplateId,
             thumbnailUrl: thumbnailUrl,
             categoryId: args.categoryId ?? null,
+            pagesLocked: args.pagesLocked ?? false,
           }),
         }
       );

@@ -12,9 +12,10 @@ import { PagesBar } from "@/features/editor/components/pages-bar";
 
 interface FooterProps {
   editor: Editor | undefined;
+  lockPages?: boolean;
 };
 
-export const Footer = ({ editor }: FooterProps) => {
+export const Footer = ({ editor, lockPages }: FooterProps) => {
   const [pagesOpen, setPagesOpen] = useState(true);
 
   const pageCount = editor?.getPages().length || 0;
@@ -24,7 +25,7 @@ export const Footer = ({ editor }: FooterProps) => {
       {/* Faixa de paginas (recolhivel) */}
       {pagesOpen && (
         <div className="border-b bg-slate-50">
-          <PagesBar editor={editor} />
+          <PagesBar editor={editor} lockPages={lockPages} />
         </div>
       )}
 

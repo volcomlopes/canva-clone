@@ -78,6 +78,9 @@ const buildEditor = ({
   activePageIdRef,
   setPages,
   setActivePageId,
+  pageThumbsRef,
+  setThumbsVersion,
+  isExportingRef,
 }: BuildEditorProps): Editor => {
 
 // Atualiza as 4 tarjas escuras ao redor da janela de recorte
@@ -287,37 +290,110 @@ const buildEditor = ({
     };
   };
 
-  const savePng = () => {
-    const options = generateSaveOptions();
+  // Renderiza uma pagina especifica e devolve o dataUrl da imagem.
+  // Assincrono: espera as imagens da pagina carregarem antes de fotografar.
+  const renderPageToDataUrl = (
+    pageJson: any,
+    format: "png" | "jpeg",
+    multiplier: number = 1
+  ): Promise<string | null> => {
+    return new Promise((resolve) => {
+      canvas.loadFromJSON(pageJson || {}, () => {
+        setTimeout(() => {
+          try {
+            const workspace = canvas
+              .getObjects()
+              .find((o: any) => o.name === "clip");
+            if (!workspace) {
+              resolve(null);
+              return;
+            }
 
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    const dataUrl = canvas.toDataURL(options);
+            canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
-    downloadFile(dataUrl, "png");
-    autoZoom();
+            const wsWidth = (workspace as any).width || 1080;
+            const wsHeight = (workspace as any).height || 1080;
+
+            const dataUrl = canvas.toDataURL({
+              format: format,
+              quality: 1,
+              // @ts-ignore
+              width: wsWidth,
+              height: wsHeight,
+              left: (workspace as any).left,
+              top: (workspace as any).top,
+              multiplier: multiplier,
+            });
+
+            resolve(dataUrl);
+          } catch {
+            resolve(null);
+          }
+        }, 150);
+      });
+    });
   };
 
-  const savePdf = (dpi: "screen" | "print" = "screen") => {
+  // Sincroniza a pagina atual e devolve a lista de paginas do documento.
+  // Usado pelos exports pra iterar todas as paginas.
+  const getAllPagesForExport = () => {
+    const currentJson = canvas.toJSON(JSON_KEYS);
+    const synced = documentRef.current.pages.map((p: any) =>
+      p.id === activePageIdRef.current ? { ...p, json: currentJson } : p
+    );
+    documentRef.current = { ...documentRef.current, pages: synced };
+    return documentRef.current.pages;
+  };
+
+  // Volta pra pagina onde o usuario estava (chamado no fim dos exports)
+  const restoreActivePage = (pageId: string) => {
+    const page = documentRef.current.pages.find((p: any) => p.id === pageId);
+    if (page) {
+      canvas.loadFromJSON(page.json || {}, () => {
+        autoZoom();
+      });
+    }
+  };
+
+  const savePng = async () => {
+    const pages = getAllPagesForExport();
+    const activeId = activePageIdRef.current;
+
+    // Uma pagina so: comportamento simples
+    if (pages.length <= 1) {
+      const options = generateSaveOptions();
+      canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      const dataUrl = canvas.toDataURL(options);
+      downloadFile(dataUrl, "png");
+      autoZoom();
+      return;
+    }
+
+    // Multipagina: baixa cada pagina como arquivo separado
+    isExportingRef.current = true;
+    for (let i = 0; i < pages.length; i++) {
+      const dataUrl = await renderPageToDataUrl(pages[i].json, "png", 1);
+      if (dataUrl) {
+        downloadFile(dataUrl, "png");
+      }
+    }
+
+    restoreActivePage(activeId);
+    // Libera o autosave so depois do canvas voltar pra pagina certa
+    setTimeout(() => {
+      isExportingRef.current = false;
+    }, 300);
+  };
+
+  const savePdf = async (dpi: "screen" | "print" = "screen") => {
     const workspace = getWorkspace() as fabric.Rect | undefined;
     const width = workspace?.width || 1080;
     const height = workspace?.height || 1080;
-
-    // Tela = 1x (72dpi base do Fabric). Impressao = ~4x pra chegar perto de 300dpi
     const multiplier = dpi === "print" ? 4 : 1;
 
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    const pages = getAllPagesForExport();
+    const activeId = activePageIdRef.current;
 
-    const dataUrl = canvas.toDataURL({
-      width: width,
-      height: height,
-      left: workspace?.left ?? 0,
-      top: workspace?.top ?? 0,
-      format: "jpeg",
-      quality: 1,
-      multiplier: multiplier,
-    });
-
-    // Cria um PDF do tamanho EXATO da arte (em pixels = pontos pt)
     const orientation = width > height ? "landscape" : "portrait";
     const pdf = new jsPDF({
       orientation: orientation,
@@ -325,10 +401,41 @@ const buildEditor = ({
       format: [width, height],
     });
 
-    pdf.addImage(dataUrl, "JPEG", 0, 0, width, height);
-    pdf.save("artbase-export.pdf");
+    // Uma pagina so
+    if (pages.length <= 1) {
+      canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      const dataUrl = canvas.toDataURL({
+        width: width,
+        height: height,
+        left: workspace?.left ?? 0,
+        top: workspace?.top ?? 0,
+        format: "jpeg",
+        quality: 1,
+        multiplier: multiplier,
+      });
+      pdf.addImage(dataUrl, "JPEG", 0, 0, width, height);
+      pdf.save("artbase-export.pdf");
+      autoZoom();
+      return;
+    }
 
-    autoZoom();
+    // Multipagina: uma pagina do PDF por slide
+    isExportingRef.current = true;
+    for (let i = 0; i < pages.length; i++) {
+      const dataUrl = await renderPageToDataUrl(pages[i].json, "jpeg", multiplier);
+      if (dataUrl) {
+        if (i > 0) {
+          pdf.addPage([width, height], orientation);
+        }
+        pdf.addImage(dataUrl, "JPEG", 0, 0, width, height);
+      }
+    }
+
+    pdf.save("artbase-export.pdf");
+    restoreActivePage(activeId);
+    setTimeout(() => {
+      isExportingRef.current = false;
+    }, 300);
   };
   
   const generateThumbnail = () => {
@@ -368,14 +475,31 @@ const buildEditor = ({
     autoZoom();
   };
 
-  const saveJpg = () => {
-    const options = generateSaveOptions();
+  const saveJpg = async () => {
+    const pages = getAllPagesForExport();
+    const activeId = activePageIdRef.current;
 
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    const dataUrl = canvas.toDataURL(options);
+    if (pages.length <= 1) {
+      const options = generateSaveOptions();
+      canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      const dataUrl = canvas.toDataURL(options);
+      downloadFile(dataUrl, "jpg");
+      autoZoom();
+      return;
+    }
 
-    downloadFile(dataUrl, "jpg");
-    autoZoom();
+    isExportingRef.current = true;
+    for (let i = 0; i < pages.length; i++) {
+      const dataUrl = await renderPageToDataUrl(pages[i].json, "jpeg", 1);
+      if (dataUrl) {
+        downloadFile(dataUrl, "jpg");
+      }
+    }
+
+    restoreActivePage(activeId);
+    setTimeout(() => {
+      isExportingRef.current = false;
+    }, 300);
   };
 
   const saveJson = async () => {
@@ -418,6 +542,49 @@ const buildEditor = ({
     canvas.setActiveObject(object);
   };
 
+  const captureActiveThumb = () => {
+    try {
+      const workspace = canvas
+        .getObjects()
+        .find((o: any) => o.name === "clip");
+      if (!workspace) return;
+
+      const prevTransform = canvas.viewportTransform
+        ? [...canvas.viewportTransform]
+        : null;
+
+      canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+
+      const wsWidth = (workspace as any).width || 1080;
+      const wsHeight = (workspace as any).height || 1080;
+      const larger = Math.max(wsWidth, wsHeight);
+      const THUMB_SIZE = 140;
+      const multiplier = larger > 0 ? THUMB_SIZE / larger : 0.1;
+
+      const dataUrl = canvas.toDataURL({
+        format: "jpeg",
+        quality: 0.6,
+        // @ts-ignore
+        width: wsWidth,
+        height: wsHeight,
+        left: (workspace as any).left,
+        top: (workspace as any).top,
+        multiplier: multiplier,
+      });
+
+      pageThumbsRef.current[activePageIdRef.current] = dataUrl;
+      setThumbsVersion((v) => v + 1);
+
+      if (prevTransform) {
+        canvas.setViewportTransform(prevTransform as any);
+      } else {
+        autoZoom();
+      }
+    } catch {
+      // Se falhar, ignora - miniatura fica com numero
+    }
+  };
+
   return {
     // ===== MULTIPAGINA (Slides 2) =====
     getPages: () => {
@@ -426,6 +593,120 @@ const buildEditor = ({
     getActivePageId: () => {
       return activePageIdRef.current;
     },
+    getPageThumb: (pageId: string) => {
+      return pageThumbsRef.current[pageId] || null;
+    },
+
+    // Gera thumbnail da PAGINA 1 (capa do projeto), em alta qualidade.
+    // Assincrono: espera as imagens da pagina 1 carregarem antes de fotografar.
+    generateCoverThumbnail: (): Promise<string | undefined> => {
+      return new Promise((resolve) => {
+        try {
+          const doc = documentRef.current;
+          const firstPage = doc.pages[0];
+          if (!firstPage) {
+            resolve(undefined);
+            return;
+          }
+
+          // Suspende o autosave durante a captura (evita contaminar paginas)
+          isExportingRef.current = true;
+
+          const currentActiveId = activePageIdRef.current;
+
+          // Sincroniza a pagina atual antes de sair dela (regra de ouro)
+          const currentJson = canvas.toJSON(JSON_KEYS);
+          const synced = doc.pages.map((p: any) =>
+            p.id === currentActiveId ? { ...p, json: currentJson } : p
+          );
+          documentRef.current = { ...doc, pages: synced };
+
+          const firstPageJson =
+            documentRef.current.pages[0].json || {};
+
+          // Ja estamos na pagina 1? Fotografa direto, sem trocar.
+          const alreadyOnFirst = currentActiveId === documentRef.current.pages[0].id;
+
+          // Reativa o autosave (com pequeno atraso pra garantir que o
+          // canvas ja voltou pra pagina certa antes de liberar o save)
+          const releaseFlag = () => {
+            setTimeout(() => {
+              isExportingRef.current = false;
+            }, 300);
+          };
+
+          const shoot = () => {
+            const workspace = canvas
+              .getObjects()
+              .find((o: any) => o.name === "clip");
+            if (!workspace) {
+              resolve(undefined);
+              return;
+            }
+
+            const prevTransform = canvas.viewportTransform
+              ? [...canvas.viewportTransform]
+              : null;
+
+            canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+
+            const wsWidth = (workspace as any).width || 1080;
+            const wsHeight = (workspace as any).height || 1080;
+            const larger = Math.max(wsWidth, wsHeight);
+            const MAX = 800;
+            const multiplier = larger > MAX ? MAX / larger : 1;
+
+            const dataUrl = canvas.toDataURL({
+              format: "png",
+              quality: 1,
+              // @ts-ignore
+              width: wsWidth,
+              height: wsHeight,
+              left: (workspace as any).left,
+              top: (workspace as any).top,
+              multiplier: multiplier,
+            });
+
+            if (prevTransform) {
+              canvas.setViewportTransform(prevTransform as any);
+            }
+
+            resolve(dataUrl);
+          };
+
+          if (alreadyOnFirst) {
+            // Ja esta na pagina 1: fotografa direto
+            shoot();
+            releaseFlag();
+          } else {
+            // Carrega a pagina 1, espera renderizar, fotografa, volta
+            canvas.loadFromJSON(firstPageJson, () => {
+              // Pequeno atraso pra garantir que imagens externas renderizaram
+              setTimeout(() => {
+                shoot();
+
+                // Volta pra pagina onde o usuario estava
+                const backPage = documentRef.current.pages.find(
+                  (p: any) => p.id === currentActiveId
+                );
+                if (backPage) {
+                  canvas.loadFromJSON(backPage.json || {}, () => {
+                    autoZoom();
+                    releaseFlag();
+                  });
+                } else {
+                  releaseFlag();
+                }
+              }, 150);
+            });
+          }
+        } catch {
+          isExportingRef.current = false;
+          resolve(undefined);
+        }
+      });
+    },
+    
     // Sincroniza o canvas atual no documento (regra de ouro - Opcao 1)
     syncActivePage: () => {
       const currentJson = canvas.toJSON(JSON_KEYS);
@@ -438,6 +719,7 @@ const buildEditor = ({
       if (pageId === activePageIdRef.current) return;
 
       // 1. Salva o canvas atual no slot da pagina que sai (regra de ouro)
+      captureActiveThumb();
       const currentJson = canvas.toJSON(JSON_KEYS);
       const syncedPages = documentRef.current.pages.map((p: any) =>
         p.id === activePageIdRef.current ? { ...p, json: currentJson } : p
@@ -462,6 +744,7 @@ const buildEditor = ({
     },
     addPage: () => {
       // 1. Salva a pagina atual antes de criar a nova
+      captureActiveThumb();
       const currentJson = canvas.toJSON(JSON_KEYS);
       const syncedPages = documentRef.current.pages.map((p: any) =>
         p.id === activePageIdRef.current ? { ...p, json: currentJson } : p
@@ -497,6 +780,102 @@ const buildEditor = ({
         save();
       });
     },
+
+    duplicatePage: (pageId: string) => {
+      // Sincroniza a pagina atual antes de mexer
+      captureActiveThumb();
+      const currentJson = canvas.toJSON(JSON_KEYS);
+      const syncedPages = documentRef.current.pages.map((p: any) =>
+        p.id === activePageIdRef.current ? { ...p, json: currentJson } : p
+      );
+
+      // Acha a pagina a duplicar
+      const sourceIndex = syncedPages.findIndex((p: any) => p.id === pageId);
+      if (sourceIndex === -1) return;
+
+      const source = syncedPages[sourceIndex];
+
+      // Cria copia com id novo
+      const newId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `page-${Date.now()}`;
+
+      const copy = {
+        id: newId,
+        json: JSON.parse(JSON.stringify(source.json || {})),
+      };
+
+      // Insere logo depois da original
+      const newPages = [
+        ...syncedPages.slice(0, sourceIndex + 1),
+        copy,
+        ...syncedPages.slice(sourceIndex + 1),
+      ];
+
+      documentRef.current = { ...documentRef.current, pages: newPages };
+      setPages(newPages.map((p: any) => ({ id: p.id })));
+
+      // Vai pra copia
+      activePageIdRef.current = newId;
+      setActivePageId(newId);
+      canvas.loadFromJSON(copy.json, () => {
+        autoZoom();
+        save();
+      });
+    },
+    deletePage: (pageId: string) => {
+      // Nunca deleta a ultima pagina
+      if (documentRef.current.pages.length <= 1) return;
+
+      const pages = documentRef.current.pages;
+      const index = pages.findIndex((p: any) => p.id === pageId);
+      if (index === -1) return;
+
+      const newPages = pages.filter((p: any) => p.id !== pageId);
+      documentRef.current = { ...documentRef.current, pages: newPages };
+      setPages(newPages.map((p: any) => ({ id: p.id })));
+
+      // Se deletou a pagina ativa, vai pra vizinha
+      if (pageId === activePageIdRef.current) {
+        const newActive = newPages[Math.max(0, index - 1)];
+        activePageIdRef.current = newActive.id;
+        setActivePageId(newActive.id);
+        canvas.loadFromJSON(newActive.json || {}, () => {
+          autoZoom();
+          save();
+        });
+      } else {
+        // So persiste a remocao
+        save();
+      }
+    },
+    movePage: (pageId: string, direction: "left" | "right") => {
+      // Sincroniza a pagina atual antes de reordenar
+      captureActiveThumb();
+      const currentJson = canvas.toJSON(JSON_KEYS);
+      const syncedPages = documentRef.current.pages.map((p: any) =>
+        p.id === activePageIdRef.current ? { ...p, json: currentJson } : p
+      );
+
+      const index = syncedPages.findIndex((p: any) => p.id === pageId);
+      if (index === -1) return;
+
+      const target = direction === "left" ? index - 1 : index + 1;
+      // Fora dos limites: nao faz nada
+      if (target < 0 || target >= syncedPages.length) return;
+
+      // Troca as posicoes
+      const newPages = [...syncedPages];
+      const tmp = newPages[index];
+      newPages[index] = newPages[target];
+      newPages[target] = tmp;
+
+      documentRef.current = { ...documentRef.current, pages: newPages };
+      setPages(newPages.map((p: any) => ({ id: p.id })));
+      save();
+    },
+
     savePng,
     saveJpg,
     saveSvg,
@@ -1806,12 +2185,20 @@ export const useEditor = ({
   const [activePageId, setActivePageId] = useState<string>(
     getFirstPageId(initialDocument.current)
   );
+  // Cache efemero de miniaturas das paginas (pageId -> dataUrl)
+  const pageThumbsRef = useRef<Record<string, string>>({});
+  const [thumbsVersion, setThumbsVersion] = useState(0);
+  // Flag: quando true, o autosave e suspenso (usado durante export multipagina)
+  const isExportingRef = useRef(false);
 
   // Embrulha o saveCallback: intercepta o json do canvas atual,
   // atualiza o slot da pagina ativa, e manda o documento v2 inteiro.
   const wrappedSaveCallback = useCallback(
     (values: { json: string; height: number; width: number }) => {
       if (!saveCallback) return;
+
+      // Durante export multipagina, nao salva (evita contaminar paginas)
+      if (isExportingRef.current) return;
 
       let pageJson: any = {};
       try {
@@ -1920,6 +2307,9 @@ export const useEditor = ({
         activePageIdRef,
         setPages,
         setActivePageId,
+        pageThumbsRef,
+        setThumbsVersion,
+        isExportingRef,
       });
     }
 
