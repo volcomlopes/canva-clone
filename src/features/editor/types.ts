@@ -115,6 +115,7 @@ export type ActiveTool =
   | "remove-bg"
   | "templates"
   | "brand-assets"
+ | "brand-svgs"
   | "crop";
 
 export const FILL_COLOR = "rgba(0,0,0,1)";
@@ -272,6 +273,7 @@ export interface Editor {
   onPaste: () => void;
   changeImageFilter: (value: string) => void;
   addImage: (value: string) => void;
+  addSvg: (value: string) => void;
   startCrop: (onEnd?: () => void) => void;
   applyCrop: () => void;
   cancelCrop: () => void;
@@ -323,7 +325,30 @@ export interface Editor {
   addInverseTriangle: () => void;
   addDiamond: () => void;
   addStar: () => void;
-  addArrow: () => void;
+  addStar8: () => void;
+  addStar20: () => void;
+  addStar4: () => void;
+  addStar40: () => void;
+  addSplash8: () => void;
+  addFlower4: () => void;
+  addFlower8: () => void;
+  addFlower10: () => void;
+  addFlower18: () => void;
+  addAsterisk8: () => void;
+  addAsterisk12: () => void;
+  addAsterisk16: () => void;
+  addAsterisk8thin: () => void;
+  addAsterisk16thin: () => void;
+  addAsterisk24: () => void;
+  addSvgShape: (svgString: string) => void;
+  addSeta1: () => void;
+  addSeta2: () => void;
+  addSeta3: () => void;
+  addSeta4: () => void;
+  addSeta5: () => void;
+  addSeta6: () => void;
+  addPentagon: () => void;
+  addHexagon: () => void;
   addLine: () => void;
   canvas: fabric.Canvas;
   getActiveFillColor: () => string;

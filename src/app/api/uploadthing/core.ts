@@ -89,6 +89,43 @@ export const ourFileRouter = {
       };
     }),
 
+    // Rota: upload de vetores SVG da marca (1 por vez)
+  brandSvgsUploader: f({
+    "image/svg+xml": {
+      maxFileSize: "2MB",
+      maxFileCount: 10,
+    },
+  })
+    .middleware(async ({ req }) => {
+      const session = await auth();
+
+      if (!session?.user) {
+        throw new UploadThingError("Unauthorized");
+      }
+
+      if (session.user.role !== "brand_admin") {
+        throw new UploadThingError("Apenas admins da marca podem subir vetores");
+      }
+
+      if (!session.user.brandId) {
+        throw new UploadThingError("Marca nao identificada");
+      }
+
+      return {
+        userId: session.user.id,
+        brandId: session.user.brandId,
+      };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return {
+        url: file.url,
+        name: file.name,
+        size: file.size,
+        brandId: metadata.brandId,
+        uploadedBy: metadata.userId,
+      };
+    }),
+
   // Rota: thumbnail de templates (gerado automaticamente ao salvar template)
   templateThumbnailUploader: f({
     image: {

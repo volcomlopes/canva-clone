@@ -10,6 +10,7 @@ import {
   Type,
   Building2,
   Layers,
+  Sticker,
 } from "lucide-react";
 
 import { ActiveTool } from "@/features/editor/types";
@@ -38,6 +39,12 @@ export const Sidebar = ({
           label="Marca"
           isActive={activeTool === "brand-assets"}
           onClick={() => onChangeActiveTool("brand-assets")}
+        />
+        <SidebarItem
+          icon={Sticker}
+          label="Vetores"
+          isActive={activeTool === "brand-svgs"}
+          onClick={() => onChangeActiveTool("brand-svgs")}
         />
         <SidebarItem
           icon={ImageIcon}

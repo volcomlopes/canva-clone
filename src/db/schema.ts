@@ -119,6 +119,31 @@ export const brandAssets = pgTable("brandAsset", {
 });
 
 // ============================================
+// BRAND SVGS - Vetores/icones oficiais da marca (recoloriveis)
+// ============================================
+export const brandSvgs = pgTable("brandSvg", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  brandId: text("brandId")
+    .notNull()
+    .references(() => brands.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  fileName: text("fileName"),
+  fileSize: text("fileSize"),
+  uploadedBy: text("uploadedBy")
+    .references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const brandSvgsRelations = relations(brandSvgs, ({ one }) => ({
+  brand: one(brands, {
+    fields: [brandSvgs.brandId],
+    references: [brands.id],
+  }),
+}));
+
+// ============================================
 // TEMPLATE CATEGORIES - Pastas de organizacao de templates
 // ============================================
 export const templateCategories = pgTable("templateCategory", {

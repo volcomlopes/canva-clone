@@ -6,7 +6,7 @@ import {
   updateRadiusHandleOffsets,
 } from "@/features/editor/utils/rect-controls";
 
-
+import { toast } from "sonner";
 
 import {
   Editor,
@@ -83,6 +83,7 @@ const buildEditor = ({
   isExportingRef,
 }: BuildEditorProps): Editor => {
 
+  
 // Atualiza as 4 tarjas escuras ao redor da janela de recorte
   const updateCropOverlay = () => {
     // @ts-ignore
@@ -1234,6 +1235,39 @@ const buildEditor = ({
         },
       );
     },
+
+    addSvg: (value: string) => {
+      fabric.loadSVGFromURL(
+        value,
+        (objects, options) => {
+          // Funde todos os paths num objeto unico (nao vira group).
+          // Assim os controles de cor/gradiente/stroke funcionam igual
+          // aos icones de 1 path.
+          objects.forEach((o: any) => {
+            if (!o.fill || o.fill === "") {
+              o.set({ fill: "#000000" });
+            }
+          });
+
+          const obj =
+            objects.length > 1
+              ? new fabric.Group(objects, options)
+              : objects[0];
+
+          const workspace = getWorkspace();
+          const maxWidth = (workspace?.width || 400) * 0.75;
+
+          obj.scaleToWidth(maxWidth);
+
+          addToCanvas(obj);
+        },
+        undefined,
+        {
+          crossOrigin: "anonymous",
+        } as any,
+      );
+    },
+
     delete: () => {
       canvas.getActiveObjects().forEach((object) => canvas.remove(object));
       canvas.discardActiveObject();
@@ -1745,24 +1779,40 @@ changeFontLineHeight: (value: number) => {
       save();
     },
 
-    changeFillGradient: (gradient: GradientOptions | null) => {
+   changeFillGradient: (gradient: GradientOptions | null) => {
+      // Vetores de multiplas partes (group) nao suportam gradiente.
+      const hasGroup = canvas
+        .getActiveObjects()
+        .some((object) => (object as any).forEachObject);
+
+      if (hasGroup && gradient !== null) {
+        toast.error(
+          "Gradiente nao disponivel neste vetor. Ele tem varias partes; use cor unica ou stroke."
+        );
+        return;
+      }
+
       canvas.getActiveObjects().forEach((object) => {
         if (gradient === null) {
-          // Remove gradiente - volta pra cor solida (usa fillColor atual ou branco)
           object.set({ fill: fillColor || "#000000" });
         } else {
-          // Calcula coords baseado no tipo e angulo
-          const objWidth = (object.width || 0) * (object.scaleX || 1);
-          const objHeight = (object.height || 0) * (object.scaleY || 1);
+          // Dimensoes reais (sem escala - o gradiente e em coords locais do objeto)
+          const objWidth = object.width || 0;
+          const objHeight = object.height || 0;
+
+          // Centro real do objeto em coords locais.
+          // Polygons/Paths tem pathOffset que desloca a origem;
+          // pra esses, o centro e o proprio pathOffset.
+          const po = (object as any).pathOffset;
+          const cx = po && typeof po.x === "number" ? po.x : objWidth / 2;
+          const cy = po && typeof po.y === "number" ? po.y : objHeight / 2;
 
           let coords: any;
 
           if (gradient.type === "linear") {
             const rad = (gradient.angle * Math.PI) / 180;
-            const cx = objWidth / 2;
-            const cy = objHeight / 2;
-            const dx = Math.cos(rad) * cx;
-            const dy = Math.sin(rad) * cy;
+            const dx = Math.cos(rad) * (objWidth / 2);
+            const dy = Math.sin(rad) * (objHeight / 2);
             coords = {
               x1: cx - dx,
               y1: cy - dy,
@@ -1770,13 +1820,13 @@ changeFontLineHeight: (value: number) => {
               y2: cy + dy,
             };
           } else {
-            // radial: do centro pra fora
+            // radial: do centro real pra fora
             coords = {
-              x1: objWidth / 2,
-              y1: objHeight / 2,
+              x1: cx,
+              y1: cy,
               r1: 0,
-              x2: objWidth / 2,
-              y2: objHeight / 2,
+              x2: cx,
+              y2: cy,
               r2: Math.max(objWidth, objHeight) / 2,
             };
           }
@@ -1839,7 +1889,13 @@ changeFontLineHeight: (value: number) => {
     changeFillColor: (value: string) => {
       setFillColor(value);
       canvas.getActiveObjects().forEach((object) => {
-        object.set({ fill: value });
+        if ((object as any).forEachObject) {
+          (object as any).forEachObject((child: any) => {
+            child.set({ fill: value });
+          });
+        } else {
+          object.set({ fill: value });
+        }
       });
       canvas.renderAll();
       save();
@@ -1853,7 +1909,13 @@ changeFontLineHeight: (value: number) => {
           return;
         }
 
-        object.set({ stroke: value });
+        if ((object as any).forEachObject) {
+          (object as any).forEachObject((child: any) => {
+            child.set({ stroke: value });
+          });
+        } else {
+          object.set({ stroke: value });
+        }
       });
       canvas.freeDrawingBrush.color = value;
       canvas.renderAll();
@@ -1862,7 +1924,13 @@ changeFontLineHeight: (value: number) => {
     changeStrokeWidth: (value: number) => {
       setStrokeWidth(value);
       canvas.getActiveObjects().forEach((object) => {
-        object.set({ strokeWidth: value });
+        if ((object as any).forEachObject) {
+          (object as any).forEachObject((child: any) => {
+            child.set({ strokeWidth: value });
+          });
+        } else {
+          object.set({ strokeWidth: value });
+        }
       });
       canvas.freeDrawingBrush.width = value;
       canvas.renderAll();
@@ -1871,11 +1939,18 @@ changeFontLineHeight: (value: number) => {
     changeStrokeDashArray: (value: number[]) => {
       setStrokeDashArray(value);
       canvas.getActiveObjects().forEach((object) => {
-        object.set({ strokeDashArray: value });
+        if ((object as any).forEachObject) {
+          (object as any).forEachObject((child: any) => {
+            child.set({ strokeDashArray: value });
+          });
+        } else {
+          object.set({ strokeDashArray: value });
+        }
       });
       canvas.renderAll();
       save();
     },
+
     addCircle: () => {
       const object = new fabric.Circle({
         ...CIRCLE_OPTIONS,
@@ -1967,65 +2042,495 @@ changeFontLineHeight: (value: number) => {
     },
 
     addStar: () => {
-      const WIDTH = 200;
-      const HEIGHT = 200;
-      const spikes = 5;
-      const outerRadius = WIDTH / 2;
-      const innerRadius = WIDTH / 4;
-      const cx = WIDTH / 2;
-      const cy = HEIGHT / 2;
-      const points: { x: number; y: number }[] = [];
-      let rot = (Math.PI / 2) * 3;
-      const step = Math.PI / spikes;
-
-      for (let i = 0; i < spikes; i++) {
-        points.push({
-          x: cx + Math.cos(rot) * outerRadius,
-          y: cy + Math.sin(rot) * outerRadius,
-        });
-        rot += step;
-        points.push({
-          x: cx + Math.cos(rot) * innerRadius,
-          y: cy + Math.sin(rot) * innerRadius,
-        });
-        rot += step;
-      }
-
-      const object = new fabric.Polygon(points, {
-        ...STAR_OPTIONS,
-        fill: fillColor,
-        stroke: strokeColor,
-        strokeWidth: strokeWidth,
-        strokeDashArray: strokeDashArray,
-      });
-
-      addToCanvas(object);
-    },
-    addArrow: () => {
-      const WIDTH = 250;
-      const HEIGHT = 200;
-
-      const object = new fabric.Polygon(
-        [
-          { x: 0, y: HEIGHT * 0.3 },
-          { x: WIDTH * 0.6, y: HEIGHT * 0.3 },
-          { x: WIDTH * 0.6, y: HEIGHT * 0.1 },
-          { x: WIDTH, y: HEIGHT * 0.5 },
-          { x: WIDTH * 0.6, y: HEIGHT * 0.9 },
-          { x: WIDTH * 0.6, y: HEIGHT * 0.7 },
-          { x: 0, y: HEIGHT * 0.7 },
-        ],
+      const object = new fabric.Path(
+        "M918.62,336.23c0,3.16-1.15,5.34-3.34,6.62l-268.43,195.4c-2.55,1.58-3.76,3.95-3.76,7.1,0,.67,1.34,5.34,4.01,14.02,2.67,8.68,6.31,20.03,10.93,34.11,4.55,14.08,9.77,30.11,15.66,48.14,5.83,18.03,11.9,36.54,18.27,55.48,6.31,19,12.44,37.82,18.45,56.45,6.01,18.64,11.53,35.63,16.63,50.99,5.04,15.3,9.29,28.29,12.81,38.85,3.46,10.62,5.65,17.36,6.62,20.21.3.61.49,1.52.49,2.79,0,2.25-.91,4.13-2.61,5.71-1.76,1.58-3.76,2.37-5.95,2.37s-3.95-.49-5.22-1.4l-10.87-8.07c-6.68-4.73-15.42-11.17-26.35-19.18-10.93-8.07-23.01-17.06-36.3-26.83-13.23-9.77-27.32-20.09-42.19-30.84-14.87-10.74-29.56-21.43-44.07-31.99-14.57-10.56-28.47-20.7-41.76-30.35-13.29-9.65-25.13-18.15-35.57-25.62-10.44-7.4-18.88-13.29-25.37-17.54-6.49-4.25-10.2-6.37-11.11-6.37-1.64,0-3.34.61-5.22,1.88l-268.43,194.92c-1.64.91-3.34,1.4-5.22,1.4-2.25,0-4.25-.79-5.95-2.37-1.76-1.58-2.61-3.46-2.61-5.71,0-.3,1.34-4.92,4.07-13.72,2.61-8.86,6.31-20.34,10.87-34.42,4.55-14.08,9.77-30.11,15.66-48.14,5.83-17.97,11.84-36.6,18.03-55.73,6.13-19.06,12.32-37.94,18.51-56.39,6.13-18.52,11.66-35.51,16.57-50.99,4.92-15.48,9.04-28.53,12.57-39.15,3.46-10.56,5.71-17.3,6.62-20.15.3-.61.49-1.58.49-2.79,0-2.85-1.09-5.1-3.28-6.68L3.34,342.85c-2.25-1.58-3.34-3.76-3.34-6.62,0-2.55.79-4.61,2.37-6.19,1.58-1.52,3.64-2.37,6.19-2.37h331.98c3.76,0,6.43-2,8.01-6.13L451.51,5.71c.91-3.83,3.58-5.71,8.07-5.71s7.1,1.88,8.01,5.71l102.47,315.84c1.21,4.13,3.95,6.13,8.07,6.13h332.41c2.55,0,4.49.85,5.95,2.37,1.4,1.58,2.12,3.64,2.12,6.19",
         {
-          ...ARROW_OPTIONS,
+          ...DIAMOND_OPTIONS,
           fill: fillColor,
           stroke: strokeColor,
           strokeWidth: strokeWidth,
           strokeDashArray: strokeDashArray,
         }
       );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+
+    addStar8: () => {
+      // Pontos EXATOS do SVG (viewBox 0 0 1395.74 1395.74), sem conversao
+      const points = [
+        { x: 1395.74, y: 697.87 },
+        { x: 1101.13, y: 530.83 },
+        { x: 1191.34, y: 204.4 },
+        { x: 864.91, y: 294.61 },
+        { x: 697.87, y: 0 },
+        { x: 530.83, y: 294.61 },
+        { x: 204.4, y: 204.4 },
+        { x: 294.61, y: 530.83 },
+        { x: 0, y: 697.87 },
+        { x: 294.61, y: 864.91 },
+        { x: 204.4, y: 1191.34 },
+        { x: 530.83, y: 1101.13 },
+        { x: 697.87, y: 1395.74 },
+        { x: 864.91, y: 1101.13 },
+        { x: 1191.34, y: 1191.34 },
+        { x: 1101.13, y: 864.91 },
+      ];
+
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS,
+        fill: fillColor,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
+        strokeDashArray: strokeDashArray,
+      });
+
+      // Escala a forma pra ~200px (o Fabric cuida do resto)
+      object.scaleToWidth(200);
 
       addToCanvas(object);
     },
+
+    addStar20: () => {
+      const points = [
+        { x: 179.64, y: 112.61 },
+        { x: 200.0, y: 100.0 },
+        { x: 179.64, y: 87.39 },
+        { x: 195.11, y: 69.1 },
+        { x: 171.84, y: 63.39 },
+        { x: 180.9, y: 41.22 },
+        { x: 157.02, y: 42.98 },
+        { x: 158.78, y: 19.1 },
+        { x: 136.61, y: 28.16 },
+        { x: 130.9, y: 4.89 },
+        { x: 112.61, y: 20.36 },
+        { x: 100.0, y: 0.0 },
+        { x: 87.39, y: 20.36 },
+        { x: 69.1, y: 4.89 },
+        { x: 63.39, y: 28.16 },
+        { x: 41.22, y: 19.1 },
+        { x: 42.98, y: 42.98 },
+        { x: 19.1, y: 41.22 },
+        { x: 28.16, y: 63.39 },
+        { x: 4.89, y: 69.1 },
+        { x: 20.36, y: 87.39 },
+        { x: 0.0, y: 100.0 },
+        { x: 20.36, y: 112.61 },
+        { x: 4.89, y: 130.9 },
+        { x: 28.16, y: 136.61 },
+        { x: 19.1, y: 158.78 },
+        { x: 42.98, y: 157.02 },
+        { x: 41.22, y: 180.9 },
+        { x: 63.39, y: 171.84 },
+        { x: 69.1, y: 195.11 },
+        { x: 87.39, y: 179.64 },
+        { x: 100.0, y: 200.0 },
+        { x: 112.61, y: 179.64 },
+        { x: 130.9, y: 195.11 },
+        { x: 136.61, y: 171.84 },
+        { x: 158.78, y: 180.9 },
+        { x: 157.02, y: 157.02 },
+        { x: 180.9, y: 158.78 },
+        { x: 171.84, y: 136.61 },
+        { x: 195.11, y: 130.9 },
+        { x: 179.64, y: 112.61 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS,
+        fill: fillColor,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
+        strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+
+    addStar4: () => {
+      const points = [
+        { x: 127.03, y: 73.0 },
+        { x: 100.0, y: 0.0 },
+        { x: 73.0, y: 73.0 },
+        { x: 0.0, y: 100.0 },
+        { x: 73.0, y: 127.03 },
+        { x: 100.0, y: 200.0 },
+        { x: 127.03, y: 127.03 },
+        { x: 200.0, y: 100.0 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS,
+        fill: fillColor,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
+        strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+
+    addStar40: () => {
+      const points = [
+        { x: 184.55, y: 106.68 }, { x: 200.0, y: 100.0 }, { x: 184.55, y: 93.32 },
+        { x: 198.77, y: 84.34 }, { x: 182.45, y: 80.19 }, { x: 195.09, y: 69.08 },
+        { x: 178.34, y: 67.53 }, { x: 189.09, y: 54.6 }, { x: 172.3, y: 55.69 },
+        { x: 180.9, y: 41.22 }, { x: 164.48, y: 44.93 }, { x: 170.71, y: 29.29 },
+        { x: 155.09, y: 35.52 }, { x: 158.79, y: 19.1 }, { x: 144.32, y: 27.7 },
+        { x: 145.41, y: 10.9 }, { x: 132.48, y: 21.66 }, { x: 130.93, y: 4.9 },
+        { x: 119.81, y: 17.54 }, { x: 115.66, y: 1.23 }, { x: 106.68, y: 15.45 },
+        { x: 100.0, y: 0.0 }, { x: 93.32, y: 15.45 }, { x: 84.34, y: 1.23 },
+        { x: 80.19, y: 17.54 }, { x: 69.08, y: 4.9 }, { x: 67.53, y: 21.66 },
+        { x: 54.6, y: 10.9 }, { x: 55.69, y: 27.7 }, { x: 41.22, y: 19.1 },
+        { x: 44.93, y: 35.52 }, { x: 29.29, y: 29.29 }, { x: 35.52, y: 44.93 },
+        { x: 19.1, y: 41.22 }, { x: 27.7, y: 55.69 }, { x: 10.9, y: 54.6 },
+        { x: 21.66, y: 67.53 }, { x: 4.9, y: 69.08 }, { x: 17.54, y: 80.19 },
+        { x: 1.23, y: 84.34 }, { x: 15.45, y: 93.32 }, { x: 0.0, y: 100.0 },
+        { x: 15.45, y: 106.68 }, { x: 1.23, y: 115.66 }, { x: 17.54, y: 119.81 },
+        { x: 4.9, y: 130.93 }, { x: 21.66, y: 132.48 }, { x: 10.9, y: 145.41 },
+        { x: 27.7, y: 144.32 }, { x: 19.1, y: 158.79 }, { x: 35.52, y: 155.09 },
+        { x: 29.29, y: 170.71 }, { x: 44.93, y: 164.48 }, { x: 41.22, y: 180.9 },
+        { x: 55.69, y: 172.3 }, { x: 54.6, y: 189.1 }, { x: 67.53, y: 178.34 },
+        { x: 69.08, y: 195.1 }, { x: 80.19, y: 182.46 }, { x: 84.34, y: 198.77 },
+        { x: 93.32, y: 184.55 }, { x: 100.0, y: 200.0 }, { x: 106.68, y: 184.55 },
+        { x: 115.66, y: 198.77 }, { x: 119.81, y: 182.46 }, { x: 130.93, y: 195.1 },
+        { x: 132.48, y: 178.34 }, { x: 145.41, y: 189.1 }, { x: 144.32, y: 172.3 },
+        { x: 158.79, y: 180.9 }, { x: 155.09, y: 164.48 }, { x: 170.71, y: 170.71 },
+        { x: 164.48, y: 155.09 }, { x: 180.9, y: 158.79 }, { x: 172.3, y: 144.32 },
+        { x: 189.09, y: 145.41 }, { x: 178.34, y: 132.48 }, { x: 195.09, y: 130.93 },
+        { x: 182.45, y: 119.81 }, { x: 198.77, y: 115.66 }, { x: 184.55, y: 106.68 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS, fill: fillColor, stroke: strokeColor,
+        strokeWidth: strokeWidth, strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+    addAsterisk8: () => {
+      const points = [
+        { x: 200.0, y: 87.28 }, { x: 130.76, y: 87.28 }, { x: 179.74, y: 38.3 },
+        { x: 161.72, y: 20.29 }, { x: 112.74, y: 69.26 }, { x: 112.74, y: 0.0 },
+        { x: 87.28, y: 0.0 }, { x: 87.28, y: 69.26 }, { x: 38.3, y: 20.29 },
+        { x: 20.29, y: 38.3 }, { x: 69.26, y: 87.28 }, { x: 0.0, y: 87.28 },
+        { x: 0.0, y: 112.74 }, { x: 69.26, y: 112.74 }, { x: 20.29, y: 161.72 },
+        { x: 38.3, y: 179.74 }, { x: 87.28, y: 130.76 }, { x: 87.28, y: 200.0 },
+        { x: 112.74, y: 200.0 }, { x: 112.74, y: 130.76 }, { x: 161.72, y: 179.74 },
+        { x: 179.74, y: 161.72 }, { x: 130.76, y: 112.74 }, { x: 200.0, y: 112.74 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS, fill: fillColor, stroke: strokeColor,
+        strokeWidth: strokeWidth, strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+    addAsterisk12: () => {
+      const points = [
+        { x: 200.0, y: 87.28 }, { x: 147.51, y: 87.28 }, { x: 192.96, y: 61.03 },
+        { x: 180.23, y: 38.97 }, { x: 134.79, y: 65.22 }, { x: 161.03, y: 19.77 },
+        { x: 138.98, y: 7.03 }, { x: 112.74, y: 52.48 }, { x: 112.74, y: 0.0 },
+        { x: 87.28, y: 0.0 }, { x: 87.28, y: 52.48 }, { x: 61.03, y: 7.03 },
+        { x: 38.97, y: 19.77 }, { x: 65.22, y: 65.22 }, { x: 19.77, y: 38.97 },
+        { x: 7.03, y: 61.03 }, { x: 52.48, y: 87.28 }, { x: 0.0, y: 87.28 },
+        { x: 0.0, y: 112.74 }, { x: 52.48, y: 112.74 }, { x: 7.03, y: 138.98 },
+        { x: 19.77, y: 161.03 }, { x: 65.22, y: 134.79 }, { x: 38.97, y: 180.23 },
+        { x: 61.03, y: 192.96 }, { x: 87.28, y: 147.51 }, { x: 87.28, y: 200.0 },
+        { x: 112.74, y: 200.0 }, { x: 112.74, y: 147.51 }, { x: 138.98, y: 192.96 },
+        { x: 161.03, y: 180.23 }, { x: 134.79, y: 134.79 }, { x: 180.23, y: 161.03 },
+        { x: 192.96, y: 138.98 }, { x: 147.51, y: 112.74 }, { x: 200.0, y: 112.74 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS, fill: fillColor, stroke: strokeColor,
+        strokeWidth: strokeWidth, strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+    addAsterisk16: () => {
+      const points = [
+        { x: 200.0, y: 87.28 }, { x: 164.04, y: 87.28 }, { x: 197.27, y: 73.52 },
+        { x: 187.52, y: 49.99 }, { x: 154.28, y: 63.75 }, { x: 179.71, y: 38.32 },
+        { x: 161.68, y: 20.29 }, { x: 136.25, y: 45.72 }, { x: 150.01, y: 12.48 },
+        { x: 126.48, y: 2.74 }, { x: 112.72, y: 35.96 }, { x: 112.72, y: 0.0 },
+        { x: 87.28, y: 0.0 }, { x: 87.28, y: 35.96 }, { x: 73.52, y: 2.74 },
+        { x: 49.99, y: 12.48 }, { x: 63.75, y: 45.72 }, { x: 38.32, y: 20.29 },
+        { x: 20.29, y: 38.32 }, { x: 45.72, y: 63.75 }, { x: 12.48, y: 49.99 },
+        { x: 2.74, y: 73.52 }, { x: 35.96, y: 87.28 }, { x: 0.0, y: 87.28 },
+        { x: 0.0, y: 112.72 }, { x: 35.96, y: 112.72 }, { x: 2.74, y: 126.48 },
+        { x: 12.48, y: 150.01 }, { x: 45.72, y: 136.25 }, { x: 20.29, y: 161.68 },
+        { x: 38.32, y: 179.71 }, { x: 63.75, y: 154.28 }, { x: 49.99, y: 187.52 },
+        { x: 73.52, y: 197.27 }, { x: 87.28, y: 164.04 }, { x: 87.28, y: 200.0 },
+        { x: 112.72, y: 200.0 }, { x: 112.72, y: 164.04 }, { x: 126.48, y: 197.27 },
+        { x: 150.01, y: 187.52 }, { x: 136.25, y: 154.28 }, { x: 161.68, y: 179.71 },
+        { x: 179.71, y: 161.68 }, { x: 154.28, y: 136.25 }, { x: 187.52, y: 150.01 },
+        { x: 197.27, y: 126.48 }, { x: 164.04, y: 112.72 }, { x: 200.0, y: 112.72 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS, fill: fillColor, stroke: strokeColor,
+        strokeWidth: strokeWidth, strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+    addAsterisk8thin: () => {
+      const points = [
+        { x: 200.0, y: 97.65 }, { x: 105.71, y: 97.65 }, { x: 172.4, y: 30.96 },
+        { x: 169.06, y: 27.62 }, { x: 102.37, y: 94.31 }, { x: 102.37, y: 0.0 },
+        { x: 97.65, y: 0.0 }, { x: 97.65, y: 94.31 }, { x: 30.96, y: 27.62 },
+        { x: 27.62, y: 30.96 }, { x: 94.31, y: 97.65 }, { x: 0.0, y: 97.65 },
+        { x: 0.0, y: 102.37 }, { x: 94.31, y: 102.37 }, { x: 27.62, y: 169.06 },
+        { x: 30.96, y: 172.4 }, { x: 97.65, y: 105.71 }, { x: 97.65, y: 200.0 },
+        { x: 102.37, y: 200.0 }, { x: 102.37, y: 105.71 }, { x: 169.06, y: 172.4 },
+        { x: 172.4, y: 169.06 }, { x: 105.71, y: 102.37 }, { x: 200.0, y: 102.37 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS, fill: fillColor, stroke: strokeColor,
+        strokeWidth: strokeWidth, strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+    addAsterisk16thin: () => {
+      const points = [
+        { x: 200.0, y: 97.65 }, { x: 111.84, y: 97.65 }, { x: 193.3, y: 63.91 },
+        { x: 191.49, y: 59.55 }, { x: 110.04, y: 93.28 }, { x: 172.4, y: 30.96 },
+        { x: 169.03, y: 27.62 }, { x: 106.73, y: 89.96 }, { x: 140.46, y: 8.51 },
+        { x: 136.09, y: 6.71 }, { x: 102.35, y: 88.14 }, { x: 102.35, y: 0.0 },
+        { x: 97.65, y: 0.0 }, { x: 97.65, y: 88.14 }, { x: 63.91, y: 6.71 },
+        { x: 59.55, y: 8.51 }, { x: 93.27, y: 89.96 }, { x: 30.96, y: 27.62 },
+        { x: 27.62, y: 30.96 }, { x: 89.96, y: 93.28 }, { x: 8.51, y: 59.55 },
+        { x: 6.71, y: 63.91 }, { x: 88.14, y: 97.65 }, { x: 0.0, y: 97.65 },
+        { x: 0.0, y: 102.35 }, { x: 88.14, y: 102.35 }, { x: 6.71, y: 136.09 },
+        { x: 8.51, y: 140.46 }, { x: 89.96, y: 106.72 }, { x: 27.62, y: 169.03 },
+        { x: 30.96, y: 172.4 }, { x: 93.27, y: 110.04 }, { x: 59.55, y: 191.49 },
+        { x: 63.91, y: 193.3 }, { x: 97.65, y: 111.85 }, { x: 97.65, y: 200.0 },
+        { x: 102.35, y: 200.0 }, { x: 102.35, y: 111.85 }, { x: 136.09, y: 193.3 },
+        { x: 140.46, y: 191.49 }, { x: 106.73, y: 110.04 }, { x: 169.03, y: 172.4 },
+        { x: 172.4, y: 169.03 }, { x: 110.04, y: 106.72 }, { x: 191.49, y: 140.46 },
+        { x: 193.3, y: 136.09 }, { x: 111.84, y: 102.35 }, { x: 200.0, y: 102.35 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS, fill: fillColor, stroke: strokeColor,
+        strokeWidth: strokeWidth, strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+    addAsterisk24: () => {
+      const points = [
+        { x: 200.0, y: 97.65 }, { x: 117.9, y: 97.65 }, { x: 197.18, y: 76.4 },
+        { x: 195.96, y: 71.84 }, { x: 116.68, y: 93.09 }, { x: 187.77, y: 52.05 },
+        { x: 185.41, y: 47.96 }, { x: 114.32, y: 89.0 }, { x: 172.35, y: 30.95 },
+        { x: 169.01, y: 27.61 }, { x: 110.99, y: 85.67 }, { x: 152.0, y: 14.58 },
+        { x: 147.91, y: 12.22 }, { x: 106.9, y: 83.31 }, { x: 128.15, y: 4.02 },
+        { x: 123.59, y: 2.81 }, { x: 102.35, y: 82.09 }, { x: 102.35, y: 0.0 },
+        { x: 97.65, y: 0.0 }, { x: 97.65, y: 82.09 }, { x: 76.4, y: 2.81 },
+        { x: 71.84, y: 4.02 }, { x: 93.09, y: 83.31 }, { x: 52.05, y: 12.22 },
+        { x: 47.96, y: 14.58 }, { x: 89.0, y: 85.67 }, { x: 30.95, y: 27.61 },
+        { x: 27.61, y: 30.95 }, { x: 85.67, y: 89.0 }, { x: 14.58, y: 47.96 },
+        { x: 12.22, y: 52.05 }, { x: 83.31, y: 93.09 }, { x: 4.02, y: 71.84 },
+        { x: 2.81, y: 76.4 }, { x: 82.09, y: 97.65 }, { x: 0.0, y: 97.65 },
+        { x: 0.0, y: 102.35 }, { x: 82.09, y: 102.35 }, { x: 2.81, y: 123.59 },
+        { x: 4.02, y: 128.15 }, { x: 83.31, y: 106.9 }, { x: 12.22, y: 147.91 },
+        { x: 14.58, y: 152.0 }, { x: 89.0, y: 110.99 }, { x: 27.61, y: 169.01 },
+        { x: 30.95, y: 172.35 }, { x: 85.67, y: 110.99 }, { x: 47.96, y: 185.41 },
+        { x: 52.05, y: 187.77 }, { x: 93.09, y: 114.32 }, { x: 71.84, y: 195.96 },
+        { x: 76.4, y: 197.18 }, { x: 97.65, y: 117.9 }, { x: 97.65, y: 200.0 },
+        { x: 102.35, y: 200.0 }, { x: 102.35, y: 117.9 }, { x: 123.59, y: 197.18 },
+        { x: 128.15, y: 195.96 }, { x: 106.9, y: 114.32 }, { x: 147.91, y: 187.77 },
+        { x: 152.0, y: 185.41 }, { x: 110.99, y: 110.99 }, { x: 169.01, y: 172.35 },
+        { x: 172.35, y: 169.01 }, { x: 114.32, y: 106.9 }, { x: 185.41, y: 152.0 },
+        { x: 187.77, y: 147.91 }, { x: 117.9, y: 102.35 }, { x: 200.0, y: 102.35 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS, fill: fillColor, stroke: strokeColor,
+        strokeWidth: strokeWidth, strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+
+    addSplash8: () => {
+      const object = new fabric.Path(
+        "M1133.14,194.42C956.33,347.64,680.47,233.37,663.78,0h0s0,0,0,0c-16.69,233.37-292.55,347.63-469.36,194.42C347.63,371.23,233.37,647.09,0,663.78c233.37,16.69,347.63,292.55,194.42,469.36,176.82-153.22,452.68-38.95,469.36,194.42h0s0,0,0,0c16.69-233.37,292.55-347.63,469.36-194.42-153.22-176.82-38.95-452.68,194.42-469.36-233.37-16.69-347.63-292.55-194.42-469.36Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+    addFlower4: () => {
+      const object = new fabric.Path(
+        "M1054.82,411.04c-82.5,0-198.09,51-294.64,116.34,65.34-96.56,116.34-212.14,116.34-294.65C876.52,104.2,772.32,0,643.78,0s-232.74,104.2-232.74,232.74c0,82.5,51,198.09,116.34,294.64-96.56-65.34-212.14-116.34-294.64-116.34C104.2,411.04,0,515.24,0,643.78s104.2,232.74,232.74,232.74c82.5,0,198.09-51,294.64-116.34-65.34,96.56-116.34,212.14-116.34,294.65,0,128.54,104.2,232.74,232.74,232.74s232.74-104.2,232.74-232.74c0-82.5-51-198.09-116.34-294.65,96.56,65.34,212.15,116.34,294.65,116.34,128.54,0,232.74-104.2,232.74-232.74s-104.2-232.74-232.74-232.74Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+    addFlower8: () => {
+      const object = new fabric.Path(
+        "M1123.3,801.71c208.34-5.33,208.34-318.53,0-323.86-7.27-.19-14.57-.28-21.9-.28-26.83,0-53.2,1.3-79.02,3.73,19.98-16.54,39.54-34.27,58.51-53.24,5.66-5.66,11.21-11.37,16.65-17.12,142.34-150.52-78.41-371.27-228.93-228.93-5.76,5.44-11.46,10.99-17.12,16.65-18.97,18.97-36.7,38.54-53.24,58.51,2.43-25.82,3.73-52.18,3.73-79.01,0-7.33-.09-14.63-.28-21.9-5.33-208.34-318.53-208.34-323.86,0-.19,7.26-.28,14.56-.28,21.9,0,26.83,1.3,53.2,3.73,79.01-16.54-19.97-34.26-39.54-53.24-58.51-5.66-5.66-11.37-11.21-17.12-16.65C260.42,39.67,39.67,260.42,182.01,410.94c5.44,5.76,10.99,11.46,16.65,17.12,18.97,18.97,38.54,36.7,58.51,53.24-25.82-2.43-52.18-3.73-79.01-3.73-7.33,0-14.63.1-21.9.28-208.34,5.33-208.34,318.53,0,323.86,7.26.18,14.56.28,21.9.28,26.83,0,53.2-1.3,79.01-3.73-19.97,16.54-39.54,34.27-58.51,53.24-5.66,5.66-11.21,11.36-16.65,17.12-142.34,150.52,78.41,371.27,228.93,228.93,5.76-5.44,11.47-10.99,17.12-16.65,18.97-18.97,36.7-38.54,53.24-58.51-2.43,25.82-3.73,52.18-3.73,79.01,0,7.33.09,14.63.28,21.9,5.33,208.34,318.53,208.34,323.86,0,.19-7.27.28-14.57.28-21.9,0-26.83-1.3-53.2-3.73-79.01,16.54,19.97,34.27,39.54,53.24,58.51,5.66,5.66,11.37,11.21,17.12,16.65,150.52,142.34,371.27-78.41,228.93-228.93-5.44-5.76-10.99-11.46-16.65-17.12-18.97-18.97-38.53-36.7-58.51-53.24,25.82,2.43,52.18,3.73,79.02,3.73,7.33,0,14.63-.1,21.9-.28Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+    addFlower10: () => {
+      const object = new fabric.Path(
+        "M1325.78,662.89c0-79.47-104.31-143.9-232.99-143.9-35.3,0-76.66,5.78-119.99,15.53,37.53-23.75,70.87-48.91,95.83-73.87,90.99-90.99,119.19-210.3,62.99-266.5-56.2-56.2-175.51-27.99-266.49,62.99-24.96,24.96-50.12,58.3-73.87,95.83,9.74-43.33,15.53-84.7,15.53-119.99C806.79,104.31,742.36,0,662.89,0s-143.9,104.31-143.9,232.99c0,35.3,5.78,76.66,15.53,119.99-23.75-37.53-48.91-70.87-73.87-95.83-90.99-90.99-210.3-119.19-266.5-62.99-56.19,56.2-27.99,175.51,63,266.5,24.96,24.96,58.3,50.12,95.83,73.87-43.33-9.75-84.7-15.53-119.99-15.53C104.31,518.99,0,583.42,0,662.89s104.31,143.9,232.99,143.9c35.3,0,76.66-5.78,119.99-15.53-37.53,23.75-70.87,48.91-95.83,73.87-90.99,90.99-119.19,210.3-63,266.5,56.2,56.2,175.51,27.99,266.5-63,24.96-24.96,50.12-58.3,73.87-95.83-9.75,43.33-15.53,84.69-15.53,119.99,0,128.67,64.43,232.99,143.9,232.99s143.9-104.31,143.9-232.99c0-35.3-5.78-76.66-15.53-119.99,23.75,37.53,48.91,70.87,73.87,95.83,90.99,90.99,210.3,119.19,266.49,63,56.2-56.2,27.99-175.51-62.99-266.5-24.96-24.96-58.3-50.12-95.83-73.87,43.33,9.75,84.69,15.53,119.99,15.53,128.68,0,232.99-64.43,232.99-143.9Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+    addFlower18: () => {
+      const object = new fabric.Path(
+        "M1312,656c0-39.04-33.96-69.39-72.75-65.04l-364.68,21.56,345.17-119.64c37.51-10.82,57.26-51.86,42.32-87.93h0c-14.94-36.07-57.93-51.12-92.1-32.25l-328.67,159.48,273.11-242.62c30.51-24.35,33.05-69.83,5.45-97.43-27.6-27.6-73.08-25.06-97.43,5.45l-242.62,273.11,159.48-328.67c18.87-34.17,3.82-77.16-32.25-92.1-36.06-14.94-77.1,4.81-87.93,42.32l-119.64,345.17,21.56-364.68c4.35-38.79-26-72.75-65.04-72.75h0c-39.04,0-69.39,33.95-65.04,72.75l21.56,364.68-119.63-345.17c-10.82-37.51-51.86-57.26-87.93-42.32-36.07,14.94-51.12,57.93-32.25,92.1l159.48,328.67-242.62-273.11c-24.35-30.51-69.83-33.05-97.43-5.45-27.6,27.6-25.06,73.08,5.45,97.43l273.11,242.62-328.67-159.48c-34.17-18.87-77.16-3.82-92.1,32.25h0c-14.94,36.07,4.81,77.11,42.32,87.93l345.17,119.64-364.68-21.56c-38.79-4.35-72.75,26-72.75,65.04s33.96,69.39,72.75,65.04l364.68-21.56-345.17,119.64c-37.51,10.82-57.26,51.86-42.32,87.93,14.94,36.07,57.93,51.12,92.1,32.25l328.67-159.48-273.11,242.62c-30.51,24.35-33.05,69.83-5.45,97.43,27.6,27.6,73.08,25.06,97.43-5.45l242.62-273.11-159.48,328.67c-18.87,34.17-3.82,77.16,32.25,92.1,36.07,14.94,77.1-4.81,87.93-42.32l119.63-345.17-21.56,364.68c-4.35,38.79,26,72.75,65.04,72.75h0c39.04,0,69.39-33.95,65.04-72.75l-21.56-364.68,119.64,345.17c10.82,37.51,51.86,57.26,87.93,42.32,36.07-14.94,51.12-57.93,32.25-92.1l-159.48-328.67,242.62,273.11c24.35,30.51,69.83,33.05,97.43,5.45,27.6-27.6,25.06-73.08-5.45-97.43l-273.11-242.62,328.67,159.48c34.17,18.87,77.16,3.82,92.1-32.25,14.94-36.07-4.81-77.11-42.32-87.93l-345.17-119.64,364.68,21.56c38.79,4.35,72.75-26,72.75-65.04Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+
+    addSvgShape: (svgString: string) => {
+      fabric.loadSVGFromString(svgString, (objects, options) => {
+        const obj = fabric.util.groupSVGElements(objects, options);
+
+        // Aplica a cor da paleta (silhueta solida)
+        if ("forEachObject" in obj && typeof (obj as any).forEachObject === "function") {
+          (obj as any).forEachObject((o: any) => {
+            o.set({ fill: fillColor, stroke: strokeColor });
+          });
+        } else {
+          obj.set({ fill: fillColor, stroke: strokeColor });
+        }
+
+        obj.scaleToWidth(200);
+
+        // Aplica as opcoes padrao (editavel, etc) igual as outras formas
+        obj.set({
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        } as any);
+
+        addToCanvas(obj);
+      });
+    },
+
+    addSeta1: () => {
+      const object = new fabric.Path(
+        "M1222.16,429.96l-481.38,340.07c-35.2,24.87-85.64,1.39-85.64-39.85v-171.71H53.43c-29.51,0-53.43-22.37-53.43-49.95v-236.81c0-27.59,23.92-49.95,53.43-49.95h601.71V50.04c0-41.24,50.44-64.72,85.64-39.85l481.38,340.07c28.29,19.99,28.29,59.72,0,79.71Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+    addSeta2: () => {
+      const object = new fabric.Path(
+        "M71.22,559.01h905.31l-295,295c-27.82,27.82-27.82,72.89,0,100.71,27.82,27.82,72.89,27.82,100.71,0l416.53-416.53c3.33-3.32,6.31-6.99,8.93-10.92,1.13-1.69,1.9-3.53,2.87-5.29,1.27-2.3,2.66-4.52,3.67-6.97.96-2.31,1.5-4.73,2.21-7.11.61-2.06,1.41-4.04,1.83-6.17,1.83-9.2,1.83-18.68,0-27.89-.42-2.14-1.22-4.11-1.83-6.17-.7-2.38-1.25-4.79-2.21-7.11-1.01-2.45-2.4-4.67-3.67-6.97-.97-1.76-1.74-3.59-2.87-5.29-2.62-3.93-5.6-7.6-8.93-10.92L782.24,20.87c-13.91-13.91-32.13-20.87-50.35-20.87s-36.44,6.96-50.35,20.87c-27.82,27.82-27.82,72.89,0,100.71l295,295H71.22c-39.33,0-71.22,31.89-71.22,71.22s31.89,71.22,71.22,71.22Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+    addSeta4: () => {
+      const object = new fabric.Path(
+        "M87.75,418.19h749.8v188.47c0,48.2,58.28,72.34,92.36,38.26l276.23-276.23c21.13-21.12,21.13-55.38,0-76.51L929.91,15.96c-34.08-34.08-92.36-9.95-92.36,38.25v188.47H87.75C39.29,242.68,0,281.98,0,330.44s39.29,87.75,87.75,87.75Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+    addSeta5: () => {
+      const object = new fabric.Path(
+        "M114.59,0c29.34,0,58.64,11.18,81.03,33.56l252.78,252.78c21.49,21.49,33.56,50.64,33.56,81.03s-12.07,59.54-33.56,81.03l-252.78,252.74c-44.78,44.78-117.29,44.78-162.06,0-44.74-44.78-44.74-117.32,0-162.06l171.74-171.71L33.55,195.63c-44.74-44.74-44.74-117.32,0-162.06C55.94,11.18,85.25,0,114.59,0Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+    addSeta6: () => {
+      const object = new fabric.Path(
+        "M986.99,316.86L553.21,4c-13.51-9.75-32.91-.57-32.91,15.56v165.85C402.19,201.46,26.68,284.9.09,698.69c-1.65,25.66,20.28,47.18,47.29,47.18h3.12c18.65,0,35.42-10.43,43.15-26.59,31.15-65.14,137.76-228.26,426.66-240.68v166.68c0,16.14,19.4,25.31,32.91,15.56l433.77-312.86c10.83-7.81,10.83-23.31,0-31.12Z",
+        {
+          ...DIAMOND_OPTIONS,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeDashArray: strokeDashArray,
+        }
+      );
+      object.scaleToWidth(200);
+      addToCanvas(object);
+    },
+    addSeta3: () => {
+      const points = [
+        { x: 0.0, y: 121.0 },
+        { x: 194.32, y: 121.0 },
+        { x: 114.87, y: 200.46 },
+        { x: 173.65, y: 200.46 },
+        { x: 273.86, y: 100.24 },
+        { x: 173.65, y: 0.0 },
+        { x: 114.87, y: 0.0 },
+        { x: 194.32, y: 79.45 },
+        { x: 0.0, y: 79.45 },
+      ];
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS,
+        fill: fillColor,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
+        strokeDashArray: strokeDashArray,
+      });
+      addToCanvas(object);
+    },
+
     addLine: () => {
       const object = new fabric.Line([0, 0, 300, 0], {
         ...LINE_OPTIONS,
@@ -2035,6 +2540,63 @@ changeFontLineHeight: (value: number) => {
 
       addToCanvas(object);
     },
+    
+    addPentagon: () => {
+      const WIDTH = 200;
+      const HEIGHT = 200;
+      const cx = WIDTH / 2;
+      const cy = HEIGHT / 2;
+      const radius = WIDTH / 2;
+      const points: { x: number; y: number }[] = [];
+
+      for (let i = 0; i < 5; i++) {
+        const angle = (Math.PI / 180) * (72 * i - 90);
+        points.push({
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+        });
+      }
+
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS,
+        width: WIDTH,
+        height: HEIGHT,
+        fill: fillColor,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
+        strokeDashArray: strokeDashArray,
+      });
+
+      addToCanvas(object);
+    },
+    addHexagon: () => {
+      const WIDTH = 200;
+      const HEIGHT = 200;
+      const cx = WIDTH / 2;
+      const cy = HEIGHT / 2;
+      const radius = WIDTH / 2;
+      const points: { x: number; y: number }[] = [];
+
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 180) * (60 * i - 90);
+        points.push({
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+        });
+      }
+
+      const object = new fabric.Polygon(points, {
+        ...DIAMOND_OPTIONS,
+        width: WIDTH,
+        height: HEIGHT,
+        fill: fillColor,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
+        strokeDashArray: strokeDashArray,
+      });
+
+      addToCanvas(object);
+    },  
     
     toggleEditable: () => {
       const selectedObject = selectedObjects[0];

@@ -57,6 +57,9 @@ export const StrokeWidthSidebar = ({
           </Label>
           <Slider
             value={[widthValue]}
+            max={50}
+            min={0}
+            step={1}
             onValueChange={(values) => onChangeStrokeWidth(values[0])}
           />
         </div>

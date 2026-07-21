@@ -8,6 +8,7 @@ import images from "./images";
 import projects from "./projects";
 import subscriptions from "./subscriptions";
 import brandAssets from "./brand-assets";
+import brandSvgs from "./brand-svgs";
 import brandKit from "./brand-kit";
 import brandSettings from "./brand-settings";
 
@@ -33,6 +34,7 @@ const routes = app
   .route("/projects", projects)
   .route("/subscriptions", subscriptions)
   .route("/brand-assets", brandAssets)
+  .route("/brand-svgs", brandSvgs)
   .route("/brand-kit", brandKit)
   .route("/brand-settings", brandSettings);
 

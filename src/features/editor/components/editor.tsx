@@ -38,6 +38,7 @@ import { TemplateSidebar } from "@/features/editor/components/template-sidebar";
 import { RemoveBgSidebar } from "@/features/editor/components/remove-bg-sidebar";
 import { SettingsSidebar } from "@/features/editor/components/settings-sidebar";
 import { BrandAssetsSidebar } from "@/features/editor/components/brand-assets-sidebar";
+import { BrandSvgsSidebar } from "@/features/editor/components/brand-svgs-sidebar";
 import { useLoadBrandFonts } from "@/features/editor/hooks/use-load-brand-fonts";
 import { useEditableBorders } from "@/features/editor/hooks/use-editable-borders";
 import { useSellerMode } from "@/features/editor/hooks/use-seller-mode";
@@ -238,6 +239,11 @@ export const Editor = ({ initialData }: EditorProps) => {
           onChangeActiveTool={onChangeActiveTool}
         />
         <BrandAssetsSidebar
+          editor={editor}
+          activeTool={activeTool}
+          onChangeActiveTool={onChangeActiveTool}
+        />
+        <BrandSvgsSidebar
           editor={editor}
           activeTool={activeTool}
           onChangeActiveTool={onChangeActiveTool}
